@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36310.24 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "zdraw", "zdraw\zdraw.vcxproj", "{704E2E70-AE8D-4EAB-BF93-2910CF525BCA}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{704E2E70-AE8D-4EAB-BF93-2910CF525BCA}.Debug|x64.ActiveCfg = Debug|x64
+		{704E2E70-AE8D-4EAB-BF93-2910CF525BCA}.Debug|x64.Build.0 = Debug|x64
+		{704E2E70-AE8D-4EAB-BF93-2910CF525BCA}.Debug|x86.ActiveCfg = Debug|Win32
+		{704E2E70-AE8D-4EAB-BF93-2910CF525BCA}.Debug|x86.Build.0 = Debug|Win32
+		{704E2E70-AE8D-4EAB-BF93-2910CF525BCA}.Release|x64.ActiveCfg = Release|x64
+		{704E2E70-AE8D-4EAB-BF93-2910CF525BCA}.Release|x64.Build.0 = Release|x64
+		{704E2E70-AE8D-4EAB-BF93-2910CF525BCA}.Release|x86.ActiveCfg = Release|Win32
+		{704E2E70-AE8D-4EAB-BF93-2910CF525BCA}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {7E9FCC11-751F-49BD-A1AF-AD7E24D26EF7}
+	EndGlobalSection
+EndGlobal
