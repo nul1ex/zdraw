@@ -435,20 +435,45 @@ namespace zdraw {
 
 		const auto norm_dx{ dx / length };
 		const auto norm_dy{ dy / length };
+
+		const auto perp_x{ -norm_dy };
+		const auto perp_y{ norm_dx };
+
 		const auto half_thickness{ thickness * 0.5f };
-		const auto tx{ -norm_dy * half_thickness };
-		const auto ty{ norm_dx * half_thickness };
+		constexpr auto aa_fringe{ 1.0f };
+		constexpr auto aa_half{ aa_fringe * 0.5f };
 
-		this->push_vertex( x0 + tx, y0 + ty, 0.0f, 0.0f, color );
-		this->push_vertex( x1 + tx, y1 + ty, 1.0f, 0.0f, color );
-		this->push_vertex( x1 - tx, y1 - ty, 1.0f, 1.0f, color );
-		this->push_vertex( x0 - tx, y0 - ty, 0.0f, 1.0f, color );
+		const auto core_offset{ half_thickness - aa_half };
+		const auto core_tx{ perp_x * core_offset };
+		const auto core_ty{ perp_y * core_offset };
 
-		std::uint32_t* idx{ this->m_indices.allocate( 6 ) };
-		idx[ 0 ] = vtx_base; idx[ 1 ] = vtx_base + 1; idx[ 2 ] = vtx_base + 2;
-		idx[ 3 ] = vtx_base; idx[ 4 ] = vtx_base + 2; idx[ 5 ] = vtx_base + 3;
+		const auto outer_offset{ half_thickness + aa_half };
+		const auto outer_tx{ perp_x * outer_offset };
+		const auto outer_ty{ perp_y * outer_offset };
 
-		this->m_commands.data( )[ this->m_commands.size( ) - 1 ].m_idx_count += 6u;
+		auto transparent_color{ color };
+		transparent_color.a = 0;
+
+		this->push_vertex( x0 + core_tx, y0 + core_ty, 0.0f, 0.0f, color );
+		this->push_vertex( x1 + core_tx, y1 + core_ty, 1.0f, 0.0f, color );
+		this->push_vertex( x1 - core_tx, y1 - core_ty, 1.0f, 1.0f, color );
+		this->push_vertex( x0 - core_tx, y0 - core_ty, 0.0f, 1.0f, color );
+
+		this->push_vertex( x0 + outer_tx, y0 + outer_ty, 0.0f, 0.0f, transparent_color );
+		this->push_vertex( x1 + outer_tx, y1 + outer_ty, 1.0f, 0.0f, transparent_color );
+		this->push_vertex( x1 - outer_tx, y1 - outer_ty, 1.0f, 1.0f, transparent_color );
+		this->push_vertex( x0 - outer_tx, y0 - outer_ty, 0.0f, 1.0f, transparent_color );
+
+		std::uint32_t* idx{ this->m_indices.allocate( 18 ) };
+
+		idx[ 0 ] = vtx_base + 0; idx[ 1 ] = vtx_base + 1; idx[ 2 ] = vtx_base + 2;
+		idx[ 3 ] = vtx_base + 0; idx[ 4 ] = vtx_base + 2; idx[ 5 ] = vtx_base + 3;
+		idx[ 6 ] = vtx_base + 0; idx[ 7 ] = vtx_base + 4; idx[ 8 ] = vtx_base + 5;
+		idx[ 9 ] = vtx_base + 0; idx[ 10 ] = vtx_base + 5; idx[ 11 ] = vtx_base + 1;
+		idx[ 12 ] = vtx_base + 2; idx[ 13 ] = vtx_base + 6; idx[ 14 ] = vtx_base + 7;
+		idx[ 15 ] = vtx_base + 2; idx[ 16 ] = vtx_base + 7; idx[ 17 ] = vtx_base + 3;
+
+		this->m_commands.data( )[ this->m_commands.size( ) - 1 ].m_idx_count += 18u;
 	}
 
 	void draw_list::add_rect( float x, float y, float w, float h, rgba color, float thickness )
@@ -644,6 +669,15 @@ namespace zdraw {
 		const auto num_segments{ closed ? num_points : ( num_points - 1 ) };
 		const auto vtx_base{ static_cast< std::uint32_t >( this->m_vertices.size( ) ) };
 
+		constexpr auto aa_fringe{ 1.0f };
+		constexpr auto aa_half{ aa_fringe * 0.5f };
+		const auto half_thickness{ thickness * 0.5f };
+		const auto core_thickness{ half_thickness - aa_half };
+		const auto outer_thickness{ half_thickness + aa_half };
+
+		auto transparent_color{ color };
+		transparent_color.a = 0;
+
 		std::vector<float> normals_x( static_cast< std::size_t >( num_segments ) );
 		std::vector<float> normals_y( static_cast< std::size_t >( num_segments ) );
 
@@ -657,9 +691,8 @@ namespace zdraw {
 			const auto length{ std::sqrt( dx * dx + dy * dy ) };
 			if ( length > 0.0001f )
 			{
-				const auto half_thickness{ thickness * 0.5f };
-				normals_x[ static_cast< std::size_t >( i ) ] = -dy / length * half_thickness;
-				normals_y[ static_cast< std::size_t >( i ) ] = dx / length * half_thickness;
+				normals_x[ static_cast< std::size_t >( i ) ] = -dy / length;
+				normals_y[ static_cast< std::size_t >( i ) ] = dx / length;
 			}
 			else
 			{
@@ -702,27 +735,57 @@ namespace zdraw {
 				}
 			}
 
-			this->push_vertex( x + normal_x, y + normal_y, 0.0f, 0.0f, color );
-			this->push_vertex( x - normal_x, y - normal_y, 1.0f, 1.0f, color );
+			const auto normal_length{ std::sqrt( normal_x * normal_x + normal_y * normal_y ) };
+			if ( normal_length > 0.0001f )
+			{
+				normal_x /= normal_length;
+				normal_y /= normal_length;
+			}
+
+			this->push_vertex( x + normal_x * core_thickness, y + normal_y * core_thickness, 0.0f, 0.0f, color );
+			this->push_vertex( x - normal_x * core_thickness, y - normal_y * core_thickness, 1.0f, 1.0f, color );
+
+			this->push_vertex( x + normal_x * outer_thickness, y + normal_y * outer_thickness, 0.0f, 0.0f, transparent_color );
+			this->push_vertex( x - normal_x * outer_thickness, y - normal_y * outer_thickness, 1.0f, 1.0f, transparent_color );
 		}
 
-		std::uint32_t* idx{ this->m_indices.allocate( static_cast< std::size_t >( num_segments ) * 6u ) };
+		std::uint32_t* idx{ this->m_indices.allocate( static_cast< std::size_t >( num_segments ) * 18u ) };
 
 		for ( int i{ 0 }; i < num_segments; ++i )
 		{
 			const auto next_i{ closed ? ( ( i + 1 ) % num_points ) : ( i + 1 ) };
-			const auto base_idx{ i * 6 };
+			const auto base_idx{ i * 18 };
 
-			idx[ base_idx + 0 ] = vtx_base + static_cast< std::uint32_t >( i * 2 + 0 );
-			idx[ base_idx + 1 ] = vtx_base + static_cast< std::uint32_t >( i * 2 + 1 );
-			idx[ base_idx + 2 ] = vtx_base + static_cast< std::uint32_t >( next_i * 2 + 1 );
+			const auto curr_core_top{ vtx_base + static_cast< std::uint32_t >( i * 4 + 0 ) };
+			const auto curr_core_bot{ vtx_base + static_cast< std::uint32_t >( i * 4 + 1 ) };
+			const auto curr_outer_top{ vtx_base + static_cast< std::uint32_t >( i * 4 + 2 ) };
+			const auto curr_outer_bot{ vtx_base + static_cast< std::uint32_t >( i * 4 + 3 ) };
+			const auto next_core_top{ vtx_base + static_cast< std::uint32_t >( next_i * 4 + 0 ) };
+			const auto next_core_bot{ vtx_base + static_cast< std::uint32_t >( next_i * 4 + 1 ) };
+			const auto next_outer_top{ vtx_base + static_cast< std::uint32_t >( next_i * 4 + 2 ) };
+			const auto next_outer_bot{ vtx_base + static_cast< std::uint32_t >( next_i * 4 + 3 ) };
 
-			idx[ base_idx + 3 ] = vtx_base + static_cast< std::uint32_t >( i * 2 + 0 );
-			idx[ base_idx + 4 ] = vtx_base + static_cast< std::uint32_t >( next_i * 2 + 1 );
-			idx[ base_idx + 5 ] = vtx_base + static_cast< std::uint32_t >( next_i * 2 + 0 );
+			idx[ base_idx + 0 ] = curr_core_top;
+			idx[ base_idx + 1 ] = curr_core_bot;
+			idx[ base_idx + 2 ] = next_core_bot;
+			idx[ base_idx + 3 ] = curr_core_top;
+			idx[ base_idx + 4 ] = next_core_bot;
+			idx[ base_idx + 5 ] = next_core_top;
+			idx[ base_idx + 6 ] = curr_outer_top;
+			idx[ base_idx + 7 ] = curr_core_top;
+			idx[ base_idx + 8 ] = next_core_top;
+			idx[ base_idx + 9 ] = curr_outer_top;
+			idx[ base_idx + 10 ] = next_core_top;
+			idx[ base_idx + 11 ] = next_outer_top;
+			idx[ base_idx + 12 ] = curr_core_bot;
+			idx[ base_idx + 13 ] = curr_outer_bot;
+			idx[ base_idx + 14 ] = next_outer_bot;
+			idx[ base_idx + 15 ] = curr_core_bot;
+			idx[ base_idx + 16 ] = next_outer_bot;
+			idx[ base_idx + 17 ] = next_core_bot;
 		}
 
-		this->m_commands.data( )[ this->m_commands.size( ) - 1 ].m_idx_count += static_cast< std::uint32_t >( num_segments ) * 6u;
+		this->m_commands.data( )[ this->m_commands.size( ) - 1 ].m_idx_count += static_cast< std::uint32_t >( num_segments ) * 18u;
 	}
 
 	void draw_list::add_circle( float x, float y, float radius, rgba color, int segments, float thickness )
