@@ -473,6 +473,9 @@ namespace nbench
 
 } // namespace nbench
 
+static float g_main_x{ 100.0f };
+static float g_main_y{ 100.0f };
+
 int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR, int )
 {
 	g_app.m_width = 1600;
@@ -494,14 +497,16 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR, int )
 		return -1;
 	}
 
+	zui::initialize( g_app.m_hwnd );
+
 	nbench::params p{};
-	p.m_rect_count = 6000;
-	p.m_circle_count = 3000;
-	p.m_line_count = 4000;
-	p.m_text_count = 2500;
-	p.m_textured_draws = 8000;
-	p.m_texture_count = 16;
-	p.m_enable_texture_swaps = true;
+	p.m_rect_count = 0;
+	p.m_circle_count = 0;
+	p.m_line_count = 1000;
+	p.m_text_count = 1000;
+	p.m_textured_draws = 0;
+	p.m_texture_count = 0;
+	p.m_enable_texture_swaps = false;
 	p.m_enable_geometry = true;
 	p.m_enable_text = true;
 
@@ -533,6 +538,22 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR, int )
 		zdraw::begin_frame( );
 		{
 			nbench::frame( static_cast< float >( g_app.m_width ), static_cast< float >( g_app.m_height ) );
+
+			zui::begin_frame( );
+
+			if ( zui::begin_window( "main", g_main_x, g_main_y, 420.0f, 280.0f ) )
+			{
+				const auto current_content_region = zui::get_content_region_avail( );
+
+				if ( zui::begin_nested_window( "content", current_content_region.first, current_content_region.second ) )
+				{
+					zui::end_nested_window( );
+				}
+
+				zui::end_window( );
+			}
+
+			zui::end_frame( );
 		}
 		zdraw::end_frame( );
 
