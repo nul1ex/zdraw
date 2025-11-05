@@ -551,7 +551,7 @@ namespace zui
 		{
 			auto [label_w, label_h] = zdraw::measure_text( label );
 			const auto text_x = abs.m_x + ( abs.m_w - label_w ) * 0.5f;
-			const auto text_y = abs.m_y + ( abs.m_h - label_h ) * 0.5f + 2.0f;
+			const auto text_y = abs.m_y + ( abs.m_h - label_h ) * 0.5f + 2.5f;
 
 			std::string label_str( label.begin( ), label.end( ) );
 			zdraw::text( text_x, text_y, label_str, detail::g_ctx.m_style.text );
