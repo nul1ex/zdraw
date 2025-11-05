@@ -30,44 +30,44 @@ namespace zui {
 		float combo_height{ 20.0f };
 		float combo_item_height{ 18.0f };
 
-		zdraw::rgba window_bg{ 18, 18, 22, 255 };
-		zdraw::rgba window_border{ 65, 75, 95, 255 };
-		zdraw::rgba nested_bg{ 24, 24, 30, 255 };
-		zdraw::rgba nested_border{ 75, 85, 105, 255 };
+		zdraw::rgba window_bg{ 250, 245, 248, 255 };
+		zdraw::rgba window_border{ 220, 190, 205, 255 };
+		zdraw::rgba nested_bg{ 245, 240, 243, 255 };
+		zdraw::rgba nested_border{ 215, 185, 200, 255 };
 
-		zdraw::rgba group_box_bg{ 26, 28, 34, 255 };
-		zdraw::rgba group_box_border{ 70, 80, 100, 255 };
-		zdraw::rgba group_box_title_text{ 200, 210, 220, 255 };
+		zdraw::rgba group_box_bg{ 248, 243, 246, 255 };
+		zdraw::rgba group_box_border{ 210, 180, 195, 255 };
+		zdraw::rgba group_box_title_text{ 120, 80, 100, 255 };
 
-		zdraw::rgba checkbox_bg{ 30, 32, 38, 255 };
-		zdraw::rgba checkbox_border{ 70, 80, 100, 255 };
-		zdraw::rgba checkbox_check{ 145, 160, 210, 255 };
+		zdraw::rgba checkbox_bg{ 255, 250, 252, 255 };
+		zdraw::rgba checkbox_border{ 210, 180, 195, 255 };
+		zdraw::rgba checkbox_check{ 255, 140, 180, 255 };
 
-		zdraw::rgba slider_bg{ 30, 32, 38, 255 };
-		zdraw::rgba slider_border{ 70, 80, 100, 255 };
-		zdraw::rgba slider_fill{ 145, 160, 210, 255 };
-		zdraw::rgba slider_grab{ 165, 180, 230, 255 };
-		zdraw::rgba slider_grab_active{ 185, 200, 240, 255 };
+		zdraw::rgba slider_bg{ 255, 250, 252, 255 };
+		zdraw::rgba slider_border{ 210, 180, 195, 255 };
+		zdraw::rgba slider_fill{ 255, 140, 180, 255 };
+		zdraw::rgba slider_grab{ 255, 160, 195, 255 };
+		zdraw::rgba slider_grab_active{ 255, 120, 170, 255 };
 
-		zdraw::rgba button_bg{ 40, 45, 60, 255 };
-		zdraw::rgba button_border{ 85, 95, 120, 255 };
-		zdraw::rgba button_hovered{ 55, 60, 80, 255 };
-		zdraw::rgba button_active{ 30, 35, 50, 255 };
+		zdraw::rgba button_bg{ 245, 235, 240, 255 };
+		zdraw::rgba button_border{ 200, 170, 185, 255 };
+		zdraw::rgba button_hovered{ 255, 225, 235, 255 };
+		zdraw::rgba button_active{ 235, 215, 225, 255 };
 
-		zdraw::rgba keybind_bg{ 30, 32, 38, 255 };
-		zdraw::rgba keybind_border{ 70, 80, 100, 255 };
-		zdraw::rgba keybind_waiting{ 145, 160, 210, 255 };
+		zdraw::rgba keybind_bg{ 255, 250, 252, 255 };
+		zdraw::rgba keybind_border{ 210, 180, 195, 255 };
+		zdraw::rgba keybind_waiting{ 255, 140, 180, 255 };
 
-		zdraw::rgba combo_bg{ 30, 32, 38, 255 };
-		zdraw::rgba combo_border{ 70, 80, 100, 255 };
-		zdraw::rgba combo_arrow{ 145, 160, 210, 255 };
-		zdraw::rgba combo_hovered{ 55, 60, 80, 255 };
-		zdraw::rgba combo_popup_bg{ 24, 24, 30, 255 };
-		zdraw::rgba combo_popup_border{ 85, 95, 120, 255 };
-		zdraw::rgba combo_item_hovered{ 55, 60, 80, 255 };
-		zdraw::rgba combo_item_selected{ 145, 160, 210, 50 };
+		zdraw::rgba combo_bg{ 255, 250, 252, 255 };
+		zdraw::rgba combo_border{ 210, 180, 195, 255 };
+		zdraw::rgba combo_arrow{ 255, 140, 180, 255 };
+		zdraw::rgba combo_hovered{ 255, 225, 235, 255 };
+		zdraw::rgba combo_popup_bg{ 250, 245, 248, 255 };
+		zdraw::rgba combo_popup_border{ 200, 170, 185, 255 };
+		zdraw::rgba combo_item_hovered{ 255, 225, 235, 255 };
+		zdraw::rgba combo_item_selected{ 255, 200, 220, 80 };
 
-		zdraw::rgba text{ 235, 240, 245, 255 };
+		zdraw::rgba text{ 80, 60, 70, 255 };
 	};
 
 	enum class style_var
@@ -161,6 +161,19 @@ namespace zui {
 	bool slider_int( std::string_view label, int& v, int v_min, int v_max );
 
 	bool combo( std::string_view label, int& current_item, const char* const items[ ], int items_count, float width = 0.0f );
+
+	enum class color_preset
+	{
+		dark_blue,
+		light_pink,
+		mint_green,
+		dark_white_accent,
+		pastel_lavender,
+		pastel_peach,
+		pastel_sky
+	};
+
+	void apply_color_preset( color_preset preset );
 
 } // namespace zui
 

@@ -539,8 +539,14 @@ namespace nmenu {
 						static bool test1 = false;
 						zui::checkbox( "option 1", test1 );
 
+						static bool test2 = false;
+						zui::checkbox( "option 2", test2 );
+
 						static int value1 = 50;
-						zui::slider_int( "value", value1, 0, 100 );
+						zui::slider_int( "int", value1, 0, 100 );
+
+						static int value2 = 50;
+						zui::slider_int( "int 2", value2, 0, 100 );
 
 						zui::end_group_box( );
 					}
@@ -548,10 +554,13 @@ namespace nmenu {
 					if ( zui::begin_group_box( "group 2", nested_w, group_height ) )
 					{
 						static bool test2 = false;
-						zui::checkbox( "option 2", test2 );
+						zui::checkbox( "option 1 g2", test2 );
 
 						static float value2 = 0.5f;
 						zui::slider_float( "float", value2, 0.0f, 1.0f );
+
+						static float value3 = 0.5f;
+						zui::slider_float( "float 2", value3, 0.0f, 1.0f );
 
 						zui::end_group_box( );
 					}
@@ -569,10 +578,18 @@ namespace nmenu {
 					if ( zui::begin_group_box( "group 3", nested_w, group_height ) )
 					{
 						static bool test3 = false;
-						zui::checkbox( "option 3", test3 );
+						zui::checkbox( "option 1 g3", test3 );
 
 						static int key = 0;
 						zui::keybind( "keybind", key );
+
+						static int current_theme = 1;
+						constexpr const char* theme_names[ ] = { "dark blue", "light pink", "mint", "dark white", "lavender", "peach", "sky" };
+
+						if ( zui::combo( "theme", current_theme, theme_names, 7 ) )
+						{
+							zui::apply_color_preset( static_cast< zui::color_preset >( current_theme ) );
+						}
 
 						zui::end_group_box( );
 					}
@@ -583,9 +600,12 @@ namespace nmenu {
 						{
 						}
 
-						constexpr const char* items[ ] = { "femboys", "oiled femboys", "something else" };
+						constexpr const char* items[ ] = { "test", "something", "something else" };
 						static int current = 0;
 						zui::combo( "mode", current, items, 3 );
+
+						static int value1 = 50;
+						zui::slider_int( "int g4", value1, 0, 100 );
 
 						zui::end_group_box( );
 					}

@@ -8,102 +8,6 @@ namespace zui {
 
 	namespace detail {
 
-		template<typename>
-		class callable;
-
-		template<typename ret_, typename... args_>
-		class callable<ret_( args_... )>
-		{
-		private:
-			using invoke_stub_t = ret_( * )( void*, args_... );
-			using destroy_stub_t = void( * )( void* );
-
-			void* m_context{ nullptr };
-			invoke_stub_t m_invoke_stub{ nullptr };
-			destroy_stub_t m_destroy_stub{ nullptr };
-
-			template<typename F>
-			static ret_ invoke_impl( void* context, args_... args )
-			{
-				return ( *static_cast< F* >( context ) )( std::forward<args_>( args )... );
-			}
-
-			template<typename F>
-			static void destroy_impl( void* context )
-			{
-				static_cast< F* >( context )->~F( );
-				::operator delete( context );
-			}
-
-		public:
-			callable( ) = default;
-
-			template<typename F>
-			callable( F&& func )
-			{
-				m_context = ::operator new( sizeof( F ) );
-				if ( m_context )
-				{
-					new ( m_context ) F( std::move( func ) );
-					m_invoke_stub = &invoke_impl<F>;
-					m_destroy_stub = &destroy_impl<F>;
-				}
-			}
-
-			~callable( )
-			{
-				if ( m_context && m_destroy_stub )
-				{
-					m_destroy_stub( m_context );
-				}
-			}
-
-			callable( callable&& other ) noexcept : m_context( other.m_context ), m_invoke_stub( other.m_invoke_stub ), m_destroy_stub( other.m_destroy_stub )
-			{
-				other.m_context = nullptr;
-				other.m_invoke_stub = nullptr;
-				other.m_destroy_stub = nullptr;
-			}
-
-			callable& operator=( callable&& other ) noexcept
-			{
-				if ( this != &other )
-				{
-					if ( m_context && m_destroy_stub )
-					{
-						m_destroy_stub( m_context );
-					}
-
-					m_context = other.m_context;
-					m_invoke_stub = other.m_invoke_stub;
-					m_destroy_stub = other.m_destroy_stub;
-
-					other.m_context = nullptr;
-					other.m_invoke_stub = nullptr;
-					other.m_destroy_stub = nullptr;
-				}
-
-				return *this;
-			}
-
-			callable( const callable& ) = delete;
-			callable& operator=( const callable& ) = delete;
-
-			ret_ operator()( args_... args ) const
-			{
-				if ( m_invoke_stub )
-				{
-					return m_invoke_stub( m_context, std::forward<args_>( args )... );
-				}
-				if constexpr ( !std::is_void_v<ret_> )
-				{
-					return ret_{};
-				}
-			}
-
-			explicit operator bool( ) const { return m_invoke_stub != nullptr; }
-		};
-
 		struct input_state
 		{
 			float m_x{ 0.0f };
@@ -136,6 +40,17 @@ namespace zui {
 			zdraw::rgba prev{};
 		};
 
+		struct combo_popup_data
+		{
+			rect button_rect{};
+			std::vector<std::string> item_strings{};
+			int* current_item{ nullptr };
+			float width{ 0.0f };
+			bool button_hovered{ false };
+			std::uintptr_t combo_id{ 0 };
+			bool was_changed{ false };
+		};
+
 		struct context
 		{
 			HWND m_hwnd{ nullptr };
@@ -143,15 +58,19 @@ namespace zui {
 			input_state m_prev_input{};
 			std::vector<window_state> m_windows{};
 			std::vector<std::uintptr_t> m_id_stack{};
+
 			std::uintptr_t m_active_window_id{ 0 };
 			std::uintptr_t m_active_slider_id{ 0 };
 			std::uintptr_t m_active_keybind_id{ 0 };
+
 			zui::style m_style{};
 			std::vector<style_var_backup> m_style_var_stack{};
 			std::vector<style_color_backup> m_style_color_stack{};
+
 			std::uintptr_t m_active_combo_id{ 0 };
-			std::vector<callable<void( )>> m_combo_overlay_list{};
 			bool m_overlay_consuming_input{ false };
+			std::uintptr_t m_changed_combo_id{ 0 };
+			std::optional<combo_popup_data> m_active_popup{};
 
 			float m_delta_time{ 0.0f };
 			std::chrono::high_resolution_clock::time_point m_last_frame_time{};
@@ -356,12 +275,78 @@ namespace zui {
 
 	void end( )
 	{
-		for ( auto& overlay : detail::g_ctx.m_combo_overlay_list )
+		if ( detail::g_ctx.m_active_popup.has_value( ) )
 		{
-			overlay( );
-		}
+			auto& popup = detail::g_ctx.m_active_popup.value( );
 
-		detail::g_ctx.m_combo_overlay_list.clear( );
+			if ( detail::g_ctx.m_active_combo_id == popup.combo_id )
+			{
+				const auto& style = detail::g_ctx.m_style;
+				const auto dropdown_y = popup.button_rect.m_y + popup.button_rect.m_h + 2.0f;
+				const auto item_height = style.combo_item_height;
+				const auto item_count = static_cast< int >( popup.item_strings.size( ) );
+				const auto dropdown_h = item_count * item_height + 4.0f;
+
+				const auto dropdown_rect = rect{ popup.button_rect.m_x, dropdown_y, popup.width, dropdown_h };
+
+				const auto bg_top = style.combo_popup_bg;
+				const auto bg_bottom = detail::darken_color( bg_top, 0.9f );
+
+				zdraw::rect_filled( dropdown_rect.m_x + 2.0f, dropdown_rect.m_y + 2.0f, popup.width, dropdown_h, zdraw::rgba{ 0, 0, 0, 60 } );
+				zdraw::rect_filled_multi_color( dropdown_rect.m_x, dropdown_rect.m_y, popup.width, dropdown_h, bg_top, bg_top, bg_bottom, bg_bottom );
+				zdraw::rect( dropdown_rect.m_x, dropdown_rect.m_y, popup.width, dropdown_h, detail::lighten_color( style.combo_popup_border, 1.1f ), 1.0f );
+
+				zdraw::push_clip_rect( dropdown_rect.m_x, dropdown_rect.m_y, dropdown_rect.m_x + dropdown_rect.m_w, dropdown_rect.m_y + dropdown_rect.m_h );
+
+				for ( int i = 0; i < item_count; ++i )
+				{
+					const auto item_y_offset = i * item_height;
+
+					const auto item_rect = rect
+					{
+						dropdown_rect.m_x + 2.0f,
+						dropdown_rect.m_y + item_y_offset + 2.0f,
+						popup.width - 4.0f,
+						item_height - 2.0f
+					};
+
+					const auto item_hovered = detail::mouse_in_rect( item_rect );
+
+					if ( i == *popup.current_item )
+					{
+						const auto selected_col = style.combo_item_selected;
+						zdraw::rect_filled( item_rect.m_x, item_rect.m_y, item_rect.m_w, item_rect.m_h, selected_col );
+
+						const auto accent_bar_col = detail::lighten_color( style.combo_arrow, 1.2f );
+						zdraw::rect_filled( item_rect.m_x, item_rect.m_y, 2.0f, item_rect.m_h, accent_bar_col );
+					}
+
+					if ( item_hovered )
+					{
+						const auto hover_col = style.combo_item_hovered;
+						zdraw::rect_filled( item_rect.m_x, item_rect.m_y, item_rect.m_w, item_rect.m_h, hover_col );
+					}
+
+					zdraw::text( dropdown_rect.m_x + style.frame_padding_x + 4.0f, dropdown_rect.m_y + item_y_offset + 3.0f, popup.item_strings[ i ].c_str( ), style.text );
+
+					if ( item_hovered && detail::g_ctx.m_input.m_clicked )
+					{
+						*popup.current_item = i;
+						detail::g_ctx.m_changed_combo_id = popup.combo_id;
+						detail::g_ctx.m_active_combo_id = 0;
+					}
+				}
+
+				zdraw::pop_clip_rect( );
+
+				if ( detail::g_ctx.m_input.m_clicked && !popup.button_hovered && !detail::mouse_in_rect( dropdown_rect ) )
+				{
+					detail::g_ctx.m_active_combo_id = 0;
+				}
+			}
+
+			detail::g_ctx.m_active_popup.reset( );
+		}
 
 		if ( detail::g_ctx.m_input.m_released )
 		{
@@ -742,7 +727,7 @@ namespace zui {
 			const auto text_y = abs.m_y + ( check_size - 12.0f ) * 0.5f;
 
 			std::string s( label.begin( ), label.end( ) );
-			zdraw::text_outlined( text_x, text_y, s, detail::g_ctx.m_style.text );
+			zdraw::text( text_x, text_y, s, detail::g_ctx.m_style.text );
 		}
 
 		return changed;
@@ -852,7 +837,7 @@ namespace zui {
 		auto [label_w, label_h] = zdraw::measure_text( label );
 		auto [button_text_w, button_text_h] = zdraw::measure_text( button_text );
 
-		const auto button_width = std::max( 60.0f, button_text_w + detail::g_ctx.m_style.frame_padding_x * 2.0f );
+		constexpr auto button_width = 80.0f;
 		const auto button_height = detail::g_ctx.m_style.keybind_height;
 
 		const auto total_w = button_width + detail::g_ctx.m_style.item_spacing_x + label_w;
@@ -1092,6 +1077,12 @@ namespace zui {
 		const auto id = detail::hash_str( label );
 		const auto is_open = ( detail::g_ctx.m_active_combo_id == id );
 
+		auto changed = ( detail::g_ctx.m_changed_combo_id == id );
+		if ( changed )
+		{
+			detail::g_ctx.m_changed_combo_id = 0;
+		}
+
 		auto [label_w, label_h] = zdraw::measure_text( label );
 
 		if ( width <= 0.0f )
@@ -1121,8 +1112,6 @@ namespace zui {
 		const auto hover_target = hovered ? 1.0f : 0.0f;
 		hover_anim = hover_anim + ( hover_target - hover_anim ) * std::min( 15.0f * detail::g_ctx.m_delta_time, 1.0f );
 
-		auto changed = false;
-
 		if ( hovered && detail::g_ctx.m_input.m_clicked && !detail::g_ctx.m_overlay_consuming_input )
 		{
 			detail::g_ctx.m_active_combo_id = is_open ? 0 : id;
@@ -1138,7 +1127,8 @@ namespace zui {
 			base_bg.a
 		};
 
-		const auto border_col = is_open ? detail::lighten_color( detail::g_ctx.m_style.combo_border, 1.3f ) : ( hovered ? detail::lighten_color( detail::g_ctx.m_style.combo_border, 1.15f ) : detail::g_ctx.m_style.combo_border );
+		const auto still_open = ( detail::g_ctx.m_active_combo_id == id );
+		const auto border_col = still_open ? detail::lighten_color( detail::g_ctx.m_style.combo_border, 1.3f ) : ( hovered ? detail::lighten_color( detail::g_ctx.m_style.combo_border, 1.15f ) : detail::g_ctx.m_style.combo_border );
 
 		const auto col_top = detail::lighten_color( bg_col, 1.1f );
 		const auto col_bottom = detail::darken_color( bg_col, 0.85f );
@@ -1155,10 +1145,27 @@ namespace zui {
 
 		const auto arrow_col = detail::g_ctx.m_style.combo_arrow;
 
-		if ( is_open )
+		if ( still_open )
 		{
 			zdraw::line( arrow_x, arrow_y + 3.0f, arrow_x + arrow_size * 0.5f, arrow_y, arrow_col, 1.5f );
 			zdraw::line( arrow_x + arrow_size * 0.5f, arrow_y, arrow_x + arrow_size, arrow_y + 3.0f, arrow_col, 1.5f );
+
+			detail::combo_popup_data popup{};
+			popup.button_rect = button_rect;
+			popup.item_strings.reserve( items_count );
+
+			for ( int i = 0; i < items_count; ++i )
+			{
+				popup.item_strings.emplace_back( items[ i ] );
+			}
+
+			popup.current_item = &current_item;
+			popup.width = width;
+			popup.button_hovered = hovered;
+			popup.combo_id = id;
+
+			detail::g_ctx.m_active_popup = std::move( popup );
+			detail::g_ctx.m_overlay_consuming_input = true;
 		}
 		else
 		{
@@ -1166,99 +1173,253 @@ namespace zui {
 			zdraw::line( arrow_x + arrow_size * 0.5f, arrow_y + 3.0f, arrow_x + arrow_size, arrow_y, arrow_col, 1.5f );
 		}
 
-		if ( is_open )
-		{
-			struct combo_overlay
-			{
-				rect button_rect;
-				const char* const* items;
-				int items_count;
-				int* current_item;
-				bool* changed;
-				float width;
-				bool hovered;
-				std::uintptr_t combo_id;
-
-				void operator()( )
-				{
-					const auto& style = detail::g_ctx.m_style;
-					const auto dropdown_y = button_rect.m_y + button_rect.m_h + 2.0f;
-					const auto item_height = style.combo_item_height;
-					const auto dropdown_h = items_count * item_height + 4.0f;
-
-					const auto dropdown_rect = rect{ button_rect.m_x, dropdown_y, width, dropdown_h };
-
-					const auto bg_top = style.combo_popup_bg;
-					const auto bg_bottom = detail::darken_color( bg_top, 0.9f );
-
-					zdraw::rect_filled( dropdown_rect.m_x + 2.0f, dropdown_rect.m_y + 2.0f, width, dropdown_h, zdraw::rgba{ 0, 0, 0, 60 } );
-					zdraw::rect_filled_multi_color( dropdown_rect.m_x, dropdown_rect.m_y, width, dropdown_h, bg_top, bg_top, bg_bottom, bg_bottom );
-					zdraw::rect( dropdown_rect.m_x, dropdown_rect.m_y, width, dropdown_h, detail::lighten_color( style.combo_popup_border, 1.1f ), 1.0f );
-
-					zdraw::push_clip_rect( dropdown_rect.m_x, dropdown_rect.m_y, dropdown_rect.m_x + dropdown_rect.m_w, dropdown_rect.m_y + dropdown_rect.m_h );
-
-					static std::unordered_map<std::uintptr_t, float> item_hover_anims{};
-
-					for ( int i = 0; i < items_count; ++i )
-					{
-						const auto item_y_offset = i * item_height;
-
-						const auto item_rect = rect
-						{
-							dropdown_rect.m_x + 2.0f,
-							dropdown_rect.m_y + item_y_offset + 2.0f,
-							width - 4.0f,
-							item_height - 2.0f
-						};
-
-						const auto item_hovered = detail::mouse_in_rect( item_rect );
-						const auto item_anim_id = ( combo_id ^ static_cast< std::uintptr_t >( i ) ) ^ 0x4954454D;
-						auto& item_hover_anim = item_hover_anims[ item_anim_id ];
-
-						const auto item_hover_target = item_hovered ? 1.0f : 0.0f;
-						item_hover_anim = item_hover_anim + ( item_hover_target - item_hover_anim ) * 0.3f;
-
-						if ( i == *current_item )
-						{
-							const auto selected_col = style.combo_item_selected;
-							zdraw::rect_filled( item_rect.m_x, item_rect.m_y, item_rect.m_w, item_rect.m_h, selected_col );
-
-							const auto accent_bar_col = detail::lighten_color( style.combo_arrow, 1.2f );
-							zdraw::rect_filled( item_rect.m_x, item_rect.m_y, 2.0f, item_rect.m_h, accent_bar_col );
-						}
-
-						if ( item_hover_anim > 0.01f )
-						{
-							const auto hover_col = style.combo_item_hovered;
-							auto hover_alpha = hover_col;
-							hover_alpha.a = static_cast< std::uint8_t >( hover_col.a * item_hover_anim );
-							zdraw::rect_filled( item_rect.m_x, item_rect.m_y, item_rect.m_w, item_rect.m_h, hover_alpha );
-						}
-
-						zdraw::text( dropdown_rect.m_x + style.frame_padding_x + 4.0f, dropdown_rect.m_y + item_y_offset + 3.0f, items[ i ], style.text );
-
-						if ( item_hovered && detail::g_ctx.m_input.m_clicked )
-						{
-							*current_item = i;
-							*changed = true;
-							detail::g_ctx.m_active_combo_id = 0;
-						}
-					}
-
-					zdraw::pop_clip_rect( );
-
-					if ( detail::g_ctx.m_input.m_clicked && !hovered && !detail::mouse_in_rect( dropdown_rect ) )
-					{
-						detail::g_ctx.m_active_combo_id = 0;
-					}
-				}
-			};
-
-			detail::g_ctx.m_combo_overlay_list.emplace_back( combo_overlay{ button_rect, items, items_count, &current_item, &changed, width, hovered, id } );
-			detail::g_ctx.m_overlay_consuming_input = true;
-		}
-
 		return changed;
+	}
+
+	void apply_color_preset( color_preset preset )
+	{
+		auto& s = detail::g_ctx.m_style;
+
+		switch ( preset )
+		{
+		case color_preset::dark_blue:
+			s.window_bg = { 18, 18, 22, 255 };
+			s.window_border = { 65, 75, 95, 255 };
+			s.nested_bg = { 24, 24, 30, 255 };
+			s.nested_border = { 75, 85, 105, 255 };
+			s.group_box_bg = { 26, 28, 34, 255 };
+			s.group_box_border = { 70, 80, 100, 255 };
+			s.group_box_title_text = { 200, 210, 220, 255 };
+			s.checkbox_bg = { 30, 32, 38, 255 };
+			s.checkbox_border = { 70, 80, 100, 255 };
+			s.checkbox_check = { 145, 160, 210, 255 };
+			s.slider_bg = { 30, 32, 38, 255 };
+			s.slider_border = { 70, 80, 100, 255 };
+			s.slider_fill = { 145, 160, 210, 255 };
+			s.slider_grab = { 165, 180, 230, 255 };
+			s.slider_grab_active = { 185, 200, 240, 255 };
+			s.button_bg = { 40, 45, 60, 255 };
+			s.button_border = { 85, 95, 120, 255 };
+			s.button_hovered = { 55, 60, 80, 255 };
+			s.button_active = { 30, 35, 50, 255 };
+			s.keybind_bg = { 30, 32, 38, 255 };
+			s.keybind_border = { 70, 80, 100, 255 };
+			s.keybind_waiting = { 145, 160, 210, 255 };
+			s.combo_bg = { 30, 32, 38, 255 };
+			s.combo_border = { 70, 80, 100, 255 };
+			s.combo_arrow = { 145, 160, 210, 255 };
+			s.combo_hovered = { 55, 60, 80, 255 };
+			s.combo_popup_bg = { 24, 24, 30, 255 };
+			s.combo_popup_border = { 85, 95, 120, 255 };
+			s.combo_item_hovered = { 55, 60, 80, 255 };
+			s.combo_item_selected = { 145, 160, 210, 50 };
+			s.text = { 235, 240, 245, 255 };
+			break;
+
+		case color_preset::light_pink:
+			s.window_bg = { 250, 245, 248, 255 };
+			s.window_border = { 220, 190, 205, 255 };
+			s.nested_bg = { 245, 240, 243, 255 };
+			s.nested_border = { 215, 185, 200, 255 };
+			s.group_box_bg = { 248, 243, 246, 255 };
+			s.group_box_border = { 210, 180, 195, 255 };
+			s.group_box_title_text = { 120, 80, 100, 255 };
+			s.checkbox_bg = { 255, 250, 252, 255 };
+			s.checkbox_border = { 210, 180, 195, 255 };
+			s.checkbox_check = { 255, 140, 180, 255 };
+			s.slider_bg = { 255, 250, 252, 255 };
+			s.slider_border = { 210, 180, 195, 255 };
+			s.slider_fill = { 255, 140, 180, 255 };
+			s.slider_grab = { 255, 160, 195, 255 };
+			s.slider_grab_active = { 255, 120, 170, 255 };
+			s.button_bg = { 245, 235, 240, 255 };
+			s.button_border = { 200, 170, 185, 255 };
+			s.button_hovered = { 255, 225, 235, 255 };
+			s.button_active = { 235, 215, 225, 255 };
+			s.keybind_bg = { 255, 250, 252, 255 };
+			s.keybind_border = { 210, 180, 195, 255 };
+			s.keybind_waiting = { 255, 140, 180, 255 };
+			s.combo_bg = { 255, 250, 252, 255 };
+			s.combo_border = { 210, 180, 195, 255 };
+			s.combo_arrow = { 255, 140, 180, 255 };
+			s.combo_hovered = { 255, 225, 235, 255 };
+			s.combo_popup_bg = { 250, 245, 248, 255 };
+			s.combo_popup_border = { 200, 170, 185, 255 };
+			s.combo_item_hovered = { 255, 225, 235, 255 };
+			s.combo_item_selected = { 255, 200, 220, 80 };
+			s.text = { 80, 60, 70, 255 };
+			break;
+
+		case color_preset::mint_green:
+			s.window_bg = { 22, 28, 26, 255 };
+			s.window_border = { 75, 110, 95, 255 };
+			s.nested_bg = { 26, 32, 30, 255 };
+			s.nested_border = { 85, 120, 105, 255 };
+			s.group_box_bg = { 28, 34, 32, 255 };
+			s.group_box_border = { 80, 115, 100, 255 };
+			s.group_box_title_text = { 200, 230, 220, 255 };
+			s.checkbox_bg = { 30, 38, 34, 255 };
+			s.checkbox_border = { 80, 115, 100, 255 };
+			s.checkbox_check = { 130, 230, 190, 255 };
+			s.slider_bg = { 30, 38, 34, 255 };
+			s.slider_border = { 80, 115, 100, 255 };
+			s.slider_fill = { 130, 230, 190, 255 };
+			s.slider_grab = { 150, 240, 200, 255 };
+			s.slider_grab_active = { 170, 250, 210, 255 };
+			s.button_bg = { 40, 50, 45, 255 };
+			s.button_border = { 95, 130, 115, 255 };
+			s.button_hovered = { 55, 70, 62, 255 };
+			s.button_active = { 30, 40, 35, 255 };
+			s.keybind_bg = { 30, 38, 34, 255 };
+			s.keybind_border = { 80, 115, 100, 255 };
+			s.keybind_waiting = { 130, 230, 190, 255 };
+			s.combo_bg = { 30, 38, 34, 255 };
+			s.combo_border = { 80, 115, 100, 255 };
+			s.combo_arrow = { 130, 230, 190, 255 };
+			s.combo_hovered = { 55, 70, 62, 255 };
+			s.combo_popup_bg = { 26, 32, 30, 255 };
+			s.combo_popup_border = { 95, 130, 115, 255 };
+			s.combo_item_hovered = { 55, 70, 62, 255 };
+			s.combo_item_selected = { 130, 230, 190, 50 };
+			s.text = { 215, 235, 225, 255 };
+			break;
+
+		case color_preset::dark_white_accent:
+			s.window_bg = { 20, 20, 20, 255 };
+			s.window_border = { 70, 70, 70, 255 };
+			s.nested_bg = { 25, 25, 25, 255 };
+			s.nested_border = { 80, 80, 80, 255 };
+			s.group_box_bg = { 28, 28, 28, 255 };
+			s.group_box_border = { 75, 75, 75, 255 };
+			s.group_box_title_text = { 220, 220, 220, 255 };
+			s.checkbox_bg = { 32, 32, 32, 255 };
+			s.checkbox_border = { 75, 75, 75, 255 };
+			s.checkbox_check = { 255, 255, 255, 255 };
+			s.slider_bg = { 32, 32, 32, 255 };
+			s.slider_border = { 75, 75, 75, 255 };
+			s.slider_fill = { 255, 255, 255, 255 };
+			s.slider_grab = { 240, 240, 240, 255 };
+			s.slider_grab_active = { 255, 255, 255, 255 };
+			s.button_bg = { 40, 40, 40, 255 };
+			s.button_border = { 90, 90, 90, 255 };
+			s.button_hovered = { 60, 60, 60, 255 };
+			s.button_active = { 30, 30, 30, 255 };
+			s.keybind_bg = { 32, 32, 32, 255 };
+			s.keybind_border = { 75, 75, 75, 255 };
+			s.keybind_waiting = { 255, 255, 255, 255 };
+			s.combo_bg = { 32, 32, 32, 255 };
+			s.combo_border = { 75, 75, 75, 255 };
+			s.combo_arrow = { 255, 255, 255, 255 };
+			s.combo_hovered = { 60, 60, 60, 255 };
+			s.combo_popup_bg = { 25, 25, 25, 255 };
+			s.combo_popup_border = { 90, 90, 90, 255 };
+			s.combo_item_hovered = { 60, 60, 60, 255 };
+			s.combo_item_selected = { 255, 255, 255, 50 };
+			s.text = { 240, 240, 240, 255 };
+			break;
+
+		case color_preset::pastel_lavender:
+			s.window_bg = { 245, 242, 252, 255 };
+			s.window_border = { 200, 190, 225, 255 };
+			s.nested_bg = { 240, 237, 248, 255 };
+			s.nested_border = { 195, 185, 220, 255 };
+			s.group_box_bg = { 243, 240, 250, 255 };
+			s.group_box_border = { 190, 180, 215, 255 };
+			s.group_box_title_text = { 100, 85, 140, 255 };
+			s.checkbox_bg = { 250, 248, 255, 255 };
+			s.checkbox_border = { 190, 180, 215, 255 };
+			s.checkbox_check = { 160, 140, 210, 255 };
+			s.slider_bg = { 250, 248, 255, 255 };
+			s.slider_border = { 190, 180, 215, 255 };
+			s.slider_fill = { 160, 140, 210, 255 };
+			s.slider_grab = { 180, 160, 225, 255 };
+			s.slider_grab_active = { 140, 120, 195, 255 };
+			s.button_bg = { 238, 235, 248, 255 };
+			s.button_border = { 185, 175, 210, 255 };
+			s.button_hovered = { 248, 243, 255, 255 };
+			s.button_active = { 228, 223, 240, 255 };
+			s.keybind_bg = { 250, 248, 255, 255 };
+			s.keybind_border = { 190, 180, 215, 255 };
+			s.keybind_waiting = { 160, 140, 210, 255 };
+			s.combo_bg = { 250, 248, 255, 255 };
+			s.combo_border = { 190, 180, 215, 255 };
+			s.combo_arrow = { 160, 140, 210, 255 };
+			s.combo_hovered = { 248, 243, 255, 255 };
+			s.combo_popup_bg = { 245, 242, 252, 255 };
+			s.combo_popup_border = { 185, 175, 210, 255 };
+			s.combo_item_hovered = { 248, 243, 255, 255 };
+			s.combo_item_selected = { 180, 160, 225, 80 };
+			s.text = { 70, 60, 100, 255 };
+			break;
+
+		case color_preset::pastel_peach:
+			s.window_bg = { 255, 245, 240, 255 };
+			s.window_border = { 230, 200, 185, 255 };
+			s.nested_bg = { 252, 242, 237, 255 };
+			s.nested_border = { 225, 195, 180, 255 };
+			s.group_box_bg = { 254, 244, 239, 255 };
+			s.group_box_border = { 220, 190, 175, 255 };
+			s.group_box_title_text = { 130, 90, 70, 255 };
+			s.checkbox_bg = { 255, 250, 248, 255 };
+			s.checkbox_border = { 220, 190, 175, 255 };
+			s.checkbox_check = { 255, 160, 120, 255 };
+			s.slider_bg = { 255, 250, 248, 255 };
+			s.slider_border = { 220, 190, 175, 255 };
+			s.slider_fill = { 255, 160, 120, 255 };
+			s.slider_grab = { 255, 180, 140, 255 };
+			s.slider_grab_active = { 255, 140, 100, 255 };
+			s.button_bg = { 248, 238, 230, 255 };
+			s.button_border = { 215, 185, 170, 255 };
+			s.button_hovered = { 255, 240, 230, 255 };
+			s.button_active = { 240, 228, 220, 255 };
+			s.keybind_bg = { 255, 250, 248, 255 };
+			s.keybind_border = { 220, 190, 175, 255 };
+			s.keybind_waiting = { 255, 160, 120, 255 };
+			s.combo_bg = { 255, 250, 248, 255 };
+			s.combo_border = { 220, 190, 175, 255 };
+			s.combo_arrow = { 255, 160, 120, 255 };
+			s.combo_hovered = { 255, 240, 230, 255 };
+			s.combo_popup_bg = { 255, 245, 240, 255 };
+			s.combo_popup_border = { 215, 185, 170, 255 };
+			s.combo_item_hovered = { 255, 240, 230, 255 };
+			s.combo_item_selected = { 255, 190, 160, 80 };
+			s.text = { 90, 70, 60, 255 };
+			break;
+
+		case color_preset::pastel_sky:
+			s.window_bg = { 240, 248, 255, 255 };
+			s.window_border = { 180, 210, 235, 255 };
+			s.nested_bg = { 235, 245, 252, 255 };
+			s.nested_border = { 175, 205, 230, 255 };
+			s.group_box_bg = { 238, 246, 254, 255 };
+			s.group_box_border = { 170, 200, 225, 255 };
+			s.group_box_title_text = { 70, 110, 150, 255 };
+			s.checkbox_bg = { 248, 252, 255, 255 };
+			s.checkbox_border = { 170, 200, 225, 255 };
+			s.checkbox_check = { 120, 180, 240, 255 };
+			s.slider_bg = { 248, 252, 255, 255 };
+			s.slider_border = { 170, 200, 225, 255 };
+			s.slider_fill = { 120, 180, 240, 255 };
+			s.slider_grab = { 140, 195, 245, 255 };
+			s.slider_grab_active = { 100, 165, 230, 255 };
+			s.button_bg = { 230, 242, 252, 255 };
+			s.button_border = { 165, 195, 220, 255 };
+			s.button_hovered = { 245, 250, 255, 255 };
+			s.button_active = { 220, 235, 248, 255 };
+			s.keybind_bg = { 248, 252, 255, 255 };
+			s.keybind_border = { 170, 200, 225, 255 };
+			s.keybind_waiting = { 120, 180, 240, 255 };
+			s.combo_bg = { 248, 252, 255, 255 };
+			s.combo_border = { 170, 200, 225, 255 };
+			s.combo_arrow = { 120, 180, 240, 255 };
+			s.combo_hovered = { 245, 250, 255, 255 };
+			s.combo_popup_bg = { 240, 248, 255, 255 };
+			s.combo_popup_border = { 165, 195, 220, 255 };
+			s.combo_item_hovered = { 245, 250, 255, 255 };
+			s.combo_item_selected = { 150, 200, 240, 80 };
+			s.text = { 60, 90, 120, 255 };
+			break;
+		}
 	}
 
 } // namespace zui
