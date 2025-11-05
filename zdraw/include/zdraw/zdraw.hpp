@@ -68,14 +68,15 @@ namespace zdraw
 
 	struct draw_cmd
 	{
-		std::uint32_t m_vtx_offset{ 0 };
 		std::uint32_t m_idx_offset{ 0 };
 		std::uint32_t m_idx_count{ 0 };
 		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_texture;
 
-		draw_cmd( ) = default;
+		bool m_has_clip{ false };
+		D3D11_RECT m_clip_rect{};
 
-		draw_cmd( std::uint32_t vtx, std::uint32_t idx, std::uint32_t count, ID3D11ShaderResourceView* tex ) : m_vtx_offset{ vtx }, m_idx_offset{ idx }, m_idx_count{ count }, m_texture{ tex } { }
+		draw_cmd( ) = default;
+		draw_cmd( std::uint32_t idx_off, std::uint32_t count, ID3D11ShaderResourceView* tex ) : m_idx_offset{ idx_off }, m_idx_count{ count }, m_texture{ tex } { }
 	};
 
 	template<typename T>
@@ -137,18 +138,21 @@ namespace zdraw
 		nvec<vertex> m_vertices{};
 		nvec<std::uint32_t> m_indices{};
 		nvec<draw_cmd> m_commands{};
+		std::vector<D3D11_RECT> m_clip_stack{};
 
 		void clear( ) noexcept
 		{
 			this->m_vertices.clear( );
 			this->m_indices.clear( );
 			this->m_commands.clear( );
+			this->m_clip_stack.clear( );
 		}
 
-		void reserve( std::uint32_t vtx_count, std::uint32_t idx_count )
+		void reserve( std::uint32_t vtx_count, std::uint32_t idx_count, std::uint32_t cmd_count = 0 )
 		{
 			this->m_vertices.reserve( vtx_count );
 			this->m_indices.reserve( idx_count );
+			if ( cmd_count > 0 ) this->m_commands.reserve( cmd_count );
 		}
 
 		void push_vertex( float x, float y, float u, float v, rgba color )
@@ -160,6 +164,9 @@ namespace zdraw
 			vtx->m_uv[ 1 ] = v;
 			vtx->m_col = color;
 		}
+
+		void push_clip_rect( float x0, float y0, float x1, float y1 );
+		void pop_clip_rect( );
 
 		void ensure_draw_cmd( ID3D11ShaderResourceView* texture );
 
@@ -243,6 +250,9 @@ namespace zdraw
 	[[nodiscard]] font* load_font_from_memory( std::span<const std::byte> font_data, float size_pixels, int atlas_width = 512, int atlas_height = 512 );
 	[[nodiscard]] font* load_font_from_file( std::string_view filepath, float size_pixels, int atlas_width = 512, int atlas_height = 512 );
 	[[nodiscard]] font* get_normal_font( ) noexcept;
+
+	void push_clip_rect( float x0, float y0, float x1, float y1 );
+	void pop_clip_rect( );
 
 	void line( float x0, float y0, float x1, float y1, rgba color, float thickness = 1.0f );
 	void rect( float x, float y, float w, float h, rgba color, float thickness = 1.0f );

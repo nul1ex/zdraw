@@ -122,10 +122,15 @@ namespace zdraw {
 			ID3D11ShaderResourceView* m_last_texture{ nullptr };
 			bool m_state_dirty{ true };
 
+			bool m_has_scissor{ false };
+			D3D11_RECT m_last_scissor{};
+
 			void reset_frame( ) noexcept
 			{
 				this->m_last_texture = nullptr;
 				this->m_state_dirty = true;
+				this->m_has_scissor = false;
+				this->m_last_scissor = D3D11_RECT{ 0,0,0,0 };
 			}
 
 			[[nodiscard]] bool needs_texture_bind( ID3D11ShaderResourceView* new_tex ) const noexcept
@@ -136,6 +141,18 @@ namespace zdraw {
 			void set_texture( ID3D11ShaderResourceView* tex ) noexcept
 			{
 				this->m_last_texture = tex;
+			}
+
+			[[nodiscard]] bool needs_scissor( const D3D11_RECT& r ) const noexcept
+			{
+				if ( !m_has_scissor ) return true;
+				return m_last_scissor.left != r.left || m_last_scissor.top != r.top || m_last_scissor.right != r.right || m_last_scissor.bottom != r.bottom;
+			}
+
+			void set_scissor( const D3D11_RECT& r ) noexcept
+			{
+				m_last_scissor = r;
+				m_has_scissor = true;
 			}
 		};
 
@@ -160,8 +177,6 @@ namespace zdraw {
 
 			static constexpr std::uint32_t k_initial_vertex_capacity{ 65536u * static_cast< std::uint32_t >( sizeof( vertex ) ) };
 			static constexpr std::uint32_t k_initial_index_capacity{ 131072u * static_cast< std::uint32_t >( sizeof( std::uint32_t ) ) };
-			static constexpr std::uint32_t k_max_vertex_capacity{ 1048576u * static_cast< std::uint32_t >( sizeof( vertex ) ) };
-			static constexpr std::uint32_t k_max_index_capacity{ 2097152u * static_cast< std::uint32_t >( sizeof( std::uint32_t ) ) };
 
 			draw_list m_current_draw_list{};
 			render_state_cache m_state_cache{};
@@ -212,6 +227,7 @@ namespace zdraw {
 			}
 
 			ComPtr<ID3DBlob> ps_blob{};
+			error_blob.Reset( );
 			hr = D3DCompile( shaders::pixel_shader_src, std::strlen( shaders::pixel_shader_src ), nullptr, nullptr, nullptr, "main", "ps_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3 | D3DCOMPILE_SKIP_VALIDATION, 0, &ps_blob, &error_blob );
 			if ( FAILED( hr ) ) [[unlikely]]
 			{
@@ -227,8 +243,8 @@ namespace zdraw {
 			D3D11_RASTERIZER_DESC raster_desc{};
 			raster_desc.FillMode = D3D11_FILL_SOLID;
 			raster_desc.CullMode = D3D11_CULL_NONE;
-			raster_desc.ScissorEnable = FALSE;
-			raster_desc.DepthClipEnable = FALSE;
+			raster_desc.ScissorEnable = TRUE;
+			raster_desc.DepthClipEnable = TRUE;
 			raster_desc.MultisampleEnable = FALSE;
 			raster_desc.AntialiasedLineEnable = FALSE;
 
@@ -326,7 +342,6 @@ namespace zdraw {
 			if ( g_render.m_vertex_buffer.needs_resize( required_vertex_bytes ) )
 			{
 				std::uint32_t new_capacity{ std::max( g_render.m_vertex_buffer.m_capacity * 2u, required_vertex_bytes ) };
-				new_capacity = std::min( new_capacity, g_render.k_max_vertex_capacity );
 				g_render.m_vertex_buffer.resize( g_render.m_device.Get( ), g_render.m_context.Get( ), new_capacity, D3D11_BIND_VERTEX_BUFFER );
 				g_render.m_buffer_resize_count += 1u;
 			}
@@ -334,7 +349,6 @@ namespace zdraw {
 			if ( g_render.m_index_buffer.needs_resize( required_index_bytes ) )
 			{
 				std::uint32_t new_capacity{ std::max( g_render.m_index_buffer.m_capacity * 2u, required_index_bytes ) };
-				new_capacity = std::min( new_capacity, g_render.k_max_index_capacity );
 				g_render.m_index_buffer.resize( g_render.m_device.Get( ), g_render.m_context.Get( ), new_capacity, D3D11_BIND_INDEX_BUFFER );
 				g_render.m_buffer_resize_count += 1u;
 			}
@@ -405,17 +419,86 @@ namespace zdraw {
 			}
 		}
 
+		static D3D11_RECT intersect_rect( const D3D11_RECT& a, const D3D11_RECT& b )
+		{
+			D3D11_RECT r{};
+			r.left = std::max( a.left, b.left );
+			r.top = std::max( a.top, b.top );
+			r.right = std::min( a.right, b.right );
+			r.bottom = std::min( a.bottom, b.bottom );
+			return r;
+		}
+
 	} // namespace detail
+
+	void draw_list::push_clip_rect( float x0, float y0, float x1, float y1 )
+	{
+		D3D11_RECT r{};
+		r.left = static_cast< LONG >( std::floor( x0 ) );
+		r.top = static_cast< LONG >( std::floor( y0 ) );
+		r.right = static_cast< LONG >( std::ceil( x1 ) );
+		r.bottom = static_cast< LONG >( std::ceil( y1 ) );
+		this->m_clip_stack.push_back( r );
+	}
+
+	void draw_list::pop_clip_rect( )
+	{
+		if ( !this->m_clip_stack.empty( ) )
+		{
+			this->m_clip_stack.pop_back( );
+		}
+	}
 
 	void draw_list::ensure_draw_cmd( ID3D11ShaderResourceView* texture )
 	{
 		auto actual_texture{ texture != nullptr ? texture : detail::g_render.m_white_texture_srv.Get( ) };
-		if ( this->m_commands.size( ) == 0 || this->m_commands.data( )[ this->m_commands.size( ) - 1 ].m_texture.Get( ) != actual_texture )
+		const auto has_clip = !this->m_clip_stack.empty( );
+
+		D3D11_RECT clip = {};
+		if ( has_clip ) 
+		{
+			clip = this->m_clip_stack.back( );
+		}
+
+		bool need_new_cmd = false;
+		if ( this->m_commands.size( ) == 0 )
+		{
+			need_new_cmd = true;
+		}
+		else
+		{
+			const auto& last = this->m_commands.data( )[ this->m_commands.size( ) - 1 ];
+			if ( last.m_texture.Get( ) != actual_texture )
+			{
+				need_new_cmd = true;
+			}
+			else if ( last.m_has_clip != has_clip )
+			{
+				need_new_cmd = true;
+			}
+			else if ( has_clip )
+			{
+				const auto& lr = last.m_clip_rect;
+				if ( lr.left != clip.left || lr.top != clip.top || lr.right != clip.right || lr.bottom != clip.bottom )
+				{
+					need_new_cmd = true;
+				}
+			}
+		}
+
+		if ( need_new_cmd )
 		{
 			auto cmd{ this->m_commands.allocate( 1 ) };
 			*cmd = draw_cmd{};
+
 			cmd->m_texture = actual_texture;
 			cmd->m_idx_offset = static_cast< std::uint32_t >( this->m_indices.size( ) );
+			cmd->m_has_clip = has_clip;
+
+			if ( has_clip ) 
+			{
+				cmd->m_clip_rect = clip;
+			}
 		}
 	}
 
@@ -439,7 +522,7 @@ namespace zdraw {
 		const auto perp_x{ -norm_dy };
 		const auto perp_y{ norm_dx };
 
-		const auto half_thickness{ thickness * 0.5f };
+		const auto half_thickness{ std::max( 0.0f, thickness ) * 0.5f };
 		constexpr auto aa_fringe{ 1.0f };
 		constexpr auto aa_half{ aa_fringe * 0.5f };
 
@@ -465,7 +548,6 @@ namespace zdraw {
 		this->push_vertex( x0 - outer_tx, y0 - outer_ty, 0.0f, 1.0f, transparent_color );
 
 		std::uint32_t* idx{ this->m_indices.allocate( 18 ) };
-
 		idx[ 0 ] = vtx_base + 0; idx[ 1 ] = vtx_base + 1; idx[ 2 ] = vtx_base + 2;
 		idx[ 3 ] = vtx_base + 0; idx[ 4 ] = vtx_base + 2; idx[ 5 ] = vtx_base + 3;
 		idx[ 6 ] = vtx_base + 0; idx[ 7 ] = vtx_base + 4; idx[ 8 ] = vtx_base + 5;
@@ -481,10 +563,24 @@ namespace zdraw {
 		this->ensure_draw_cmd( nullptr );
 
 		const auto vtx_base{ static_cast< std::uint32_t >( this->m_vertices.size( ) ) };
+
+		if ( w <= 0.0f || h <= 0.0f ) 
+		{
+			return;
+		}
+
+		const auto max_th{ 0.5f * std::min( w, h ) };
+
+		thickness = std::clamp( thickness, 0.0f, max_th );
+		if ( thickness <= 0.0f ) 
+		{
+			return;
+		}
+
 		const auto inner_x{ x + thickness };
 		const auto inner_y{ y + thickness };
-		const auto inner_w{ w - thickness * 2.0f };
-		const auto inner_h{ h - thickness * 2.0f };
+		const auto inner_w{ std::max( 0.0f, w - thickness * 2.0f ) };
+		const auto inner_h{ std::max( 0.0f, h - thickness * 2.0f ) };
 
 		this->push_vertex( x, y, 0.0f, 0.0f, color );
 		this->push_vertex( x + w, y, 0.0f, 0.0f, color );
@@ -516,6 +612,14 @@ namespace zdraw {
 		const auto vtx_base{ static_cast< std::uint32_t >( this->m_vertices.size( ) ) };
 		const auto max_corner{ std::min( w, h ) * 0.5f };
 		const auto actual_corner_length{ std::min( corner_length, max_corner ) };
+
+		const auto max_th{ 0.5f * std::min( w, h ) };
+
+		thickness = std::clamp( thickness, 0.0f, max_th );
+		if ( thickness <= 0.0f )
+		{
+			return;
+		}
 
 		this->push_vertex( x, y, 0.0f, 0.0f, color );
 		this->push_vertex( x + actual_corner_length, y, 0.0f, 0.0f, color );
@@ -671,8 +775,8 @@ namespace zdraw {
 
 		constexpr auto aa_fringe{ 1.0f };
 		constexpr auto aa_half{ aa_fringe * 0.5f };
-		const auto half_thickness{ thickness * 0.5f };
-		const auto core_thickness{ half_thickness - aa_half };
+		const auto half_thickness{ std::max( 0.0f, thickness ) * 0.5f };
+		const auto core_thickness{ std::max( 0.0f, half_thickness - aa_half ) };
 		const auto outer_thickness{ half_thickness + aa_half };
 
 		auto transparent_color{ color };
@@ -1003,7 +1107,7 @@ namespace zdraw {
 			return false;
 		}
 
-		detail::g_render.m_current_draw_list.reserve( 5000u, 10000u );
+		detail::g_render.m_current_draw_list.reserve( 5000u, 10000u, 256u );
 		return true;
 	}
 
@@ -1062,11 +1166,21 @@ namespace zdraw {
 		d.m_index_buffer.unmap( d.m_context.Get( ) );
 
 		D3D11_VIEWPORT viewport{};
-		std::uint32_t num_viewports{ 1u };
+		UINT num_viewports{ 1u };
 		d.m_context->RSGetViewports( &num_viewports, &viewport );
-		detail::setup_projection_matrix( viewport.Width, viewport.Height );
+		const float vp_w = num_viewports > 0 ? viewport.Width : static_cast< float >( GetSystemMetrics( SM_CXSCREEN ) );
+		const float vp_h = num_viewports > 0 ? viewport.Height : static_cast< float >( GetSystemMetrics( SM_CYSCREEN ) );
 
+		detail::setup_projection_matrix( vp_w, vp_h );
 		detail::setup_render_state( );
+
+		D3D11_RECT viewport_rect{};
+		viewport_rect.left = 0;
+		viewport_rect.top = 0;
+		viewport_rect.right = static_cast< LONG >( std::ceil( vp_w ) );
+		viewport_rect.bottom = static_cast< LONG >( std::ceil( vp_h ) );
+		d.m_context->RSSetScissorRects( 1, &viewport_rect );
+		d.m_state_cache.set_scissor( viewport_rect );
 
 		auto& state_cache{ d.m_state_cache };
 		for ( std::size_t i{ 0 }; i < dl.m_commands.size( ); ++i )
@@ -1075,6 +1189,22 @@ namespace zdraw {
 			if ( cmd.m_idx_count == 0u )
 			{
 				continue;
+			}
+
+			D3D11_RECT scissor{ viewport_rect };
+			if ( cmd.m_has_clip )
+			{
+				scissor = detail::intersect_rect( scissor, cmd.m_clip_rect );
+				if ( scissor.right <= scissor.left || scissor.bottom <= scissor.top )
+				{
+					continue;
+				}
+			}
+
+			if ( state_cache.needs_scissor( scissor ) )
+			{
+				d.m_context->RSSetScissorRects( 1, &scissor );
+				state_cache.set_scissor( scissor );
 			}
 
 			if ( state_cache.needs_texture_bind( cmd.m_texture.Get( ) ) )
@@ -1097,8 +1227,21 @@ namespace zdraw {
 
 	std::pair<int, int> get_display_size( ) noexcept
 	{
-		static const std::pair<int, int> size{ GetSystemMetrics( SM_CXSCREEN ), GetSystemMetrics( SM_CYSCREEN ) };
-		return size;
+		auto& d{ detail::g_render };
+
+		D3D11_VIEWPORT viewport{};
+		UINT num_viewports{ 1u };
+		if ( d.m_context )
+		{
+			d.m_context->RSGetViewports( &num_viewports, &viewport );
+		}
+
+		if ( num_viewports > 0 && viewport.Width > 0.0f && viewport.Height > 0.0f )
+		{
+			return { static_cast< int >( std::lround( viewport.Width ) ), static_cast< int >( std::lround( viewport.Height ) ) };
+		}
+
+		return { GetSystemMetrics( SM_CXSCREEN ), GetSystemMetrics( SM_CYSCREEN ) };
 	}
 
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> load_texture_from_memory( std::span<const std::byte> data, int* out_width, int* out_height )
@@ -1279,6 +1422,16 @@ namespace zdraw {
 		}
 
 		return detail::g_render.m_normal_font;
+	}	
+	
+	void push_clip_rect( float x0, float y0, float x1, float y1 ) 
+	{ 
+		get_draw_list( ).push_clip_rect( x0, y0, x1, y1 );
+	}
+
+	void pop_clip_rect( )
+	{
+		get_draw_list( ).pop_clip_rect( );
 	}
 
 	void line( float x0, float y0, float x1, float y1, rgba color, float thickness )
