@@ -47,5 +47,8 @@
     <ClInclude Include="include\zdraw\zui.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\zdraw\external\fonts\roboto.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -4,10 +4,106 @@
 #include <algorithm>
 #include <chrono>
 
-namespace zui
-{
-	namespace detail
-	{
+namespace zui {
+
+	namespace detail {
+
+		template<typename>
+		class callable;
+
+		template<typename ret_, typename... args_>
+		class callable<ret_( args_... )>
+		{
+		private:
+			using invoke_stub_t = ret_( * )( void*, args_... );
+			using destroy_stub_t = void( * )( void* );
+
+			void* m_context{ nullptr };
+			invoke_stub_t m_invoke_stub{ nullptr };
+			destroy_stub_t m_destroy_stub{ nullptr };
+
+			template<typename F>
+			static ret_ invoke_impl( void* context, args_... args )
+			{
+				return ( *static_cast< F* >( context ) )( std::forward<args_>( args )... );
+			}
+
+			template<typename F>
+			static void destroy_impl( void* context )
+			{
+				static_cast< F* >( context )->~F( );
+				::operator delete( context );
+			}
+
+		public:
+			callable( ) = default;
+
+			template<typename F>
+			callable( F&& func )
+			{
+				m_context = ::operator new( sizeof( F ) );
+				if ( m_context )
+				{
+					new ( m_context ) F( std::move( func ) );
+					m_invoke_stub = &invoke_impl<F>;
+					m_destroy_stub = &destroy_impl<F>;
+				}
+			}
+
+			~callable( )
+			{
+				if ( m_context && m_destroy_stub )
+				{
+					m_destroy_stub( m_context );
+				}
+			}
+
+			callable( callable&& other ) noexcept : m_context( other.m_context ), m_invoke_stub( other.m_invoke_stub ), m_destroy_stub( other.m_destroy_stub )
+			{
+				other.m_context = nullptr;
+				other.m_invoke_stub = nullptr;
+				other.m_destroy_stub = nullptr;
+			}
+
+			callable& operator=( callable&& other ) noexcept
+			{
+				if ( this != &other )
+				{
+					if ( m_context && m_destroy_stub )
+					{
+						m_destroy_stub( m_context );
+					}
+
+					m_context = other.m_context;
+					m_invoke_stub = other.m_invoke_stub;
+					m_destroy_stub = other.m_destroy_stub;
+
+					other.m_context = nullptr;
+					other.m_invoke_stub = nullptr;
+					other.m_destroy_stub = nullptr;
+				}
+
+				return *this;
+			}
+
+			callable( const callable& ) = delete;
+			callable& operator=( const callable& ) = delete;
+
+			ret_ operator()( args_... args ) const
+			{
+				if ( m_invoke_stub )
+				{
+					return m_invoke_stub( m_context, std::forward<args_>( args )... );
+				}
+				if constexpr ( !std::is_void_v<ret_> )
+				{
+					return ret_{};
+				}
+			}
+
+			explicit operator bool( ) const { return m_invoke_stub != nullptr; }
+		};
+
 		struct input_state
 		{
 			float m_x{ 0.0f };
@@ -53,6 +149,12 @@ namespace zui
 			zui::style m_style{};
 			std::vector<style_var_backup> m_style_var_stack{};
 			std::vector<style_color_backup> m_style_color_stack{};
+			std::uintptr_t m_active_combo_id{ 0 };
+			std::vector<callable<void( )>> m_combo_overlay_list{};
+			bool m_overlay_consuming_input{ false };
+
+			float m_delta_time{ 0.0f };
+			std::chrono::high_resolution_clock::time_point m_last_frame_time{};
 		};
 
 		static context g_ctx{};
@@ -147,6 +249,9 @@ namespace zui
 			case style_color::window_border: return g_ctx.m_style.window_border;
 			case style_color::nested_bg: return g_ctx.m_style.nested_bg;
 			case style_color::nested_border: return g_ctx.m_style.nested_border;
+			case style_color::group_box_bg: return g_ctx.m_style.group_box_bg;
+			case style_color::group_box_border: return g_ctx.m_style.group_box_border;
+			case style_color::group_box_title_text: return g_ctx.m_style.group_box_title_text;
 			case style_color::checkbox_bg: return g_ctx.m_style.checkbox_bg;
 			case style_color::checkbox_border: return g_ctx.m_style.checkbox_border;
 			case style_color::checkbox_check: return g_ctx.m_style.checkbox_check;
@@ -162,6 +267,14 @@ namespace zui
 			case style_color::keybind_bg: return g_ctx.m_style.keybind_bg;
 			case style_color::keybind_border: return g_ctx.m_style.keybind_border;
 			case style_color::keybind_waiting: return g_ctx.m_style.keybind_waiting;
+			case style_color::combo_bg: return g_ctx.m_style.combo_bg;
+			case style_color::combo_border: return g_ctx.m_style.combo_border;
+			case style_color::combo_arrow: return g_ctx.m_style.combo_arrow;
+			case style_color::combo_hovered: return g_ctx.m_style.combo_hovered;
+			case style_color::combo_popup_bg: return g_ctx.m_style.combo_popup_bg;
+			case style_color::combo_popup_border: return g_ctx.m_style.combo_popup_border;
+			case style_color::combo_item_hovered: return g_ctx.m_style.combo_item_hovered;
+			case style_color::combo_item_selected: return g_ctx.m_style.combo_item_selected;
 			case style_color::text: return g_ctx.m_style.text;
 			default: return g_ctx.m_style.window_bg;
 			}
@@ -179,9 +292,12 @@ namespace zui
 			case style_var::frame_padding_y: return &g_ctx.m_style.frame_padding_y;
 			case style_var::window_rounding: return &g_ctx.m_style.window_rounding;
 			case style_var::border_thickness: return &g_ctx.m_style.border_thickness;
+			case style_var::group_box_title_height: return &g_ctx.m_style.group_box_title_height;
 			case style_var::checkbox_size: return &g_ctx.m_style.checkbox_size;
 			case style_var::slider_height: return &g_ctx.m_style.slider_height;
 			case style_var::keybind_height: return &g_ctx.m_style.keybind_height;
+			case style_var::combo_height: return &g_ctx.m_style.combo_height;
+			case style_var::combo_item_height: return &g_ctx.m_style.combo_item_height;
 			default: return nullptr;
 			}
 		}
@@ -207,7 +323,8 @@ namespace zui
 				color.a
 			};
 		}
-	}
+
+	} // namespace detail
 
 	bool initialize( HWND hwnd )
 	{
@@ -215,19 +332,42 @@ namespace zui
 		return hwnd != nullptr;
 	}
 
-	void update( )
+	void begin( )
 	{
 		detail::g_ctx.m_prev_input = detail::g_ctx.m_input;
 		detail::update_input( );
+
+		const auto current_time = std::chrono::high_resolution_clock::now( );
+		if ( detail::g_ctx.m_last_frame_time.time_since_epoch( ).count( ) != 0 )
+		{
+			detail::g_ctx.m_delta_time = std::chrono::duration<float>( current_time - detail::g_ctx.m_last_frame_time ).count( );
+		}
+		else
+		{
+			detail::g_ctx.m_delta_time = 1.0f / 60.0f;
+		}
+
+		detail::g_ctx.m_last_frame_time = current_time;
+
+		detail::g_ctx.m_overlay_consuming_input = false;
+		detail::g_ctx.m_windows.clear( );
+		detail::g_ctx.m_id_stack.clear( );
+	}
+
+	void end( )
+	{
+		for ( auto& overlay : detail::g_ctx.m_combo_overlay_list )
+		{
+			overlay( );
+		}
+
+		detail::g_ctx.m_combo_overlay_list.clear( );
 
 		if ( detail::g_ctx.m_input.m_released )
 		{
 			detail::g_ctx.m_active_window_id = 0;
 			detail::g_ctx.m_active_slider_id = 0;
 		}
-
-		detail::g_ctx.m_windows.clear( );
-		detail::g_ctx.m_id_stack.clear( );
 	}
 
 	bool begin_window( std::string_view title, float& x, float& y, float w, float h )
@@ -333,6 +473,65 @@ namespace zui
 		end_window( );
 	}
 
+	bool begin_group_box( std::string_view title, float w, float h )
+	{
+		auto parent = detail::current_window( );
+		if ( !parent )
+		{
+			return false;
+		}
+
+		const auto title_h = detail::g_ctx.m_style.group_box_title_height;
+		auto local = detail::item_add( w, h );
+		auto abs = rect{ parent->m_rect.m_x + local.m_x, parent->m_rect.m_y + local.m_y, w, h };
+
+		const auto bg_col = detail::g_ctx.m_style.group_box_bg;
+		const auto border_col = detail::g_ctx.m_style.group_box_border;
+		const auto thickness = detail::g_ctx.m_style.border_thickness;
+
+		const auto border_y = abs.m_y + title_h * 0.5f;
+
+		zdraw::rect_filled( abs.m_x, border_y, abs.m_w, abs.m_h - title_h * 0.5f, bg_col );
+		zdraw::rect( abs.m_x, border_y, abs.m_w, abs.m_h - title_h * 0.5f, border_col, thickness );
+
+		if ( !title.empty( ) )
+		{
+			auto [title_w, title_h_measured] = zdraw::measure_text( title );
+			const auto text_x = abs.m_x + detail::g_ctx.m_style.window_padding_x;
+			const auto text_y = abs.m_y;
+			const auto pad = 4.0f;
+
+			const auto gap_start = text_x - pad;
+			const auto gap_end = text_x + title_w + pad;
+
+			zdraw::line( gap_start, border_y, gap_end, border_y, bg_col, thickness );
+
+			std::string title_str( title.begin( ), title.end( ) );
+			zdraw::text( text_x, text_y + 2.0f, title_str, detail::g_ctx.m_style.group_box_title_text );
+		}
+
+		detail::g_ctx.m_windows.emplace_back( );
+		auto win = detail::current_window( );
+
+		win->m_title.assign( title.begin( ), title.end( ) );
+		win->m_rect = abs;
+		win->m_cursor_x = detail::g_ctx.m_style.window_padding_x;
+		win->m_cursor_y = title_h + detail::g_ctx.m_style.window_padding_y;
+		win->m_line_h = 0.0f;
+		win->m_last_item = { 0, 0, 0, 0 };
+		win->m_is_child = true;
+
+		zdraw::push_clip_rect( abs.m_x, abs.m_y + title_h * 0.5f, abs.m_x + abs.m_w, abs.m_y + abs.m_h );
+		detail::g_ctx.m_id_stack.push_back( detail::hash_str( title ) );
+
+		return true;
+	}
+
+	void end_group_box( )
+	{
+		end_window( );
+	}
+
 	std::pair<float, float> get_cursor_pos( )
 	{
 		auto win = detail::current_window( );
@@ -381,6 +580,19 @@ namespace zui
 		auto avail_w = std::max( 0.0f, work_max_x - next_x );
 		auto avail_h = std::max( 0.0f, work_max_y - next_y );
 		return { avail_w, avail_h };
+	}
+
+	float calc_item_width( int count )
+	{
+		auto [avail_w, avail_h] = get_content_region_avail( );
+
+		if ( count <= 0 )
+		{
+			return avail_w;
+		}
+
+		const auto spacing = detail::g_ctx.m_style.item_spacing_x;
+		return ( avail_w - spacing * ( count - 1 ) ) / static_cast< float >( count );
 	}
 
 	style& get_style( )
@@ -444,6 +656,23 @@ namespace zui
 		}
 	}
 
+	void same_line( float offset_x )
+	{
+		auto win = detail::current_window( );
+		if ( !win )
+		{
+			return;
+		}
+
+		if ( win->m_line_h > 0.0f )
+		{
+			const auto spacing = ( offset_x == 0.0f ) ? detail::g_ctx.m_style.item_spacing_x : offset_x;
+			win->m_cursor_x = win->m_last_item.m_x + win->m_last_item.m_w + spacing;
+			win->m_cursor_y = win->m_last_item.m_y;
+			win->m_line_h = 0.0f;
+		}
+	}
+
 	bool checkbox( std::string_view label, bool& v )
 	{
 		auto win = detail::current_window( );
@@ -469,17 +698,12 @@ namespace zui
 			changed = true;
 		}
 
-		static auto last_time = std::chrono::high_resolution_clock::now( );
-		const auto current_time = std::chrono::high_resolution_clock::now( );
-		const auto delta_time = std::chrono::duration<float>( current_time - last_time ).count( );
-		last_time = current_time;
-
-		const auto anim_speed = 12.0f * delta_time;
+		const auto anim_speed = 12.0f * detail::g_ctx.m_delta_time;
 		const auto target = v ? 1.0f : 0.0f;
 		anim = anim + ( target - anim ) * anim_speed;
 
 		const auto bg_col = detail::g_ctx.m_style.checkbox_bg;
-		const auto border_col = hovered ? detail::g_ctx.m_style.checkbox_border : detail::g_ctx.m_style.checkbox_border;
+		const auto border_col = hovered ? detail::lighten_color( detail::g_ctx.m_style.checkbox_border, 1.15f ) : detail::g_ctx.m_style.checkbox_border;
 		const auto check_col = detail::g_ctx.m_style.checkbox_check;
 
 		zdraw::rect_filled( abs.m_x, abs.m_y, abs.m_w, abs.m_h, bg_col );
@@ -551,7 +775,7 @@ namespace zui
 		{
 			auto [label_w, label_h] = zdraw::measure_text( label );
 			const auto text_x = abs.m_x + ( abs.m_w - label_w ) * 0.5f;
-			const auto text_y = abs.m_y + ( abs.m_h - label_h ) * 0.5f + 2.5f;
+			const auto text_y = abs.m_y + ( abs.m_h - label_h ) * 0.5f + 3.0f;
 
 			std::string label_str( label.begin( ), label.end( ) );
 			zdraw::text( text_x, text_y, label_str, detail::g_ctx.m_style.text );
@@ -599,9 +823,9 @@ namespace zui
 				else if ( key == VK_MBUTTON ) key_name = "mmb";
 				else if ( key == VK_XBUTTON1 ) key_name = "mb4";
 				else if ( key == VK_XBUTTON2 ) key_name = "mb5";
-				else if ( key == VK_SHIFT ) key_name = "shift";
-				else if ( key == VK_CONTROL ) key_name = "ctrl";
-				else if ( key == VK_MENU ) key_name = "alt";
+				else if ( key == VK_SHIFT || key == VK_LSHIFT || key == VK_RSHIFT ) key_name = "shift";
+				else if ( key == VK_CONTROL || key == VK_LCONTROL || key == VK_RCONTROL ) key_name = "ctrl";
+				else if ( key == VK_MENU || key == VK_LMENU || key == VK_RMENU ) key_name = "alt";
 				else if ( key == VK_SPACE ) key_name = "space";
 				else if ( key == VK_RETURN ) key_name = "enter";
 				else if ( key == VK_ESCAPE ) key_name = "esc";
@@ -613,8 +837,12 @@ namespace zui
 				else if ( key == VK_END ) key_name = "end";
 				else if ( key == VK_PRIOR ) key_name = "pgup";
 				else if ( key == VK_NEXT ) key_name = "pgdn";
+				else if ( key == VK_LEFT ) key_name = "left";
+				else if ( key == VK_RIGHT ) key_name = "right";
+				else if ( key == VK_UP ) key_name = "up";
+				else if ( key == VK_DOWN ) key_name = "down";
 
-				if ( key_name != "unknown" && key < 0x30 )
+				if ( key_name != "unknown" )
 				{
 					std::snprintf( button_text, sizeof( button_text ), "%s", key_name );
 				}
@@ -671,7 +899,7 @@ namespace zui
 
 		const auto text_x = button_rect.m_x + ( button_rect.m_w - button_text_w ) * 0.5f;
 		const auto text_y = button_rect.m_y + ( button_rect.m_h - button_text_h ) * 0.5f;
-		zdraw::text( text_x, text_y + 2.5f, button_text, detail::g_ctx.m_style.text );
+		zdraw::text( text_x, text_y + 3.5f, button_text, detail::g_ctx.m_style.text );
 
 		if ( !label.empty( ) )
 		{
@@ -679,14 +907,43 @@ namespace zui
 			const auto label_y = button_rect.m_y + ( button_height - label_h ) * 0.5f;
 
 			std::string label_str( label.begin( ), label.end( ) );
-			zdraw::text( label_x, label_y + 2.5f, label_str, detail::g_ctx.m_style.text );
+			zdraw::text( label_x, label_y + 3.5f, label_str, detail::g_ctx.m_style.text );
 		}
 
 		if ( is_waiting )
 		{
+			if ( detail::g_ctx.m_input.m_clicked && !hovered )
+			{
+				key = VK_LBUTTON;
+				detail::g_ctx.m_active_keybind_id = 0;
+				return true;
+			}
+
+			static const int modifier_keys[ ] = { VK_LSHIFT, VK_RSHIFT, VK_LCONTROL, VK_RCONTROL, VK_LMENU, VK_RMENU };
+			for ( const auto mod_key : modifier_keys )
+			{
+				if ( GetAsyncKeyState( mod_key ) & 0x8000 )
+				{
+					key = mod_key;
+					detail::g_ctx.m_active_keybind_id = 0;
+					return true;
+				}
+			}
+
 			for ( int vk = 0x01; vk < 0xFF; ++vk )
 			{
 				if ( vk == VK_LBUTTON )
+				{
+					continue;
+				}
+
+				if ( 
+					vk == VK_SHIFT || vk == VK_CONTROL || 
+					vk == VK_MENU ||
+					vk == VK_LSHIFT || vk == VK_RSHIFT ||
+					vk == VK_LCONTROL || vk == VK_RCONTROL ||
+					vk == VK_LMENU || vk == VK_RMENU
+					)
 				{
 					continue;
 				}
@@ -777,13 +1034,8 @@ namespace zui
 			changed = true;
 		}
 
-		static auto last_time = std::chrono::high_resolution_clock::now( );
-		const auto current_time = std::chrono::high_resolution_clock::now( );
-		const auto delta_time = std::chrono::duration<float>( current_time - last_time ).count( );
-		last_time = current_time;
-
-		const auto value_lerp_speed = 20.0f * delta_time;
-		value_anim = std::lerp( value_anim, static_cast< float >( v ), value_lerp_speed );
+		const auto value_lerp_speed = 20.0f * detail::g_ctx.m_delta_time;
+		value_anim = value_anim + ( static_cast< float >( v ) - value_anim ) * value_lerp_speed;
 
 		if ( !label.empty( ) )
 		{
@@ -828,4 +1080,185 @@ namespace zui
 	{
 		return slider_scalar( label, v, v_min, v_max, "%d" );
 	}
-}
+
+	bool combo( std::string_view label, int& current_item, const char* const items[ ], int items_count, float width )
+	{
+		auto win = detail::current_window( );
+		if ( !win || items_count == 0 )
+		{
+			return false;
+		}
+
+		const auto id = detail::hash_str( label );
+		const auto is_open = ( detail::g_ctx.m_active_combo_id == id );
+
+		auto [label_w, label_h] = zdraw::measure_text( label );
+
+		if ( width <= 0.0f )
+		{
+			width = calc_item_width( 0 );
+		}
+
+		const auto combo_height = detail::g_ctx.m_style.combo_height;
+		const auto total_height = label_h + combo_height - 2.0f;
+
+		auto local = detail::item_add( width, total_height );
+		auto abs = detail::item_rect_abs( local );
+
+		if ( !label.empty( ) )
+		{
+			std::string label_str( label.begin( ), label.end( ) );
+			zdraw::text( abs.m_x, abs.m_y, label_str, detail::g_ctx.m_style.text );
+		}
+
+		const auto button_y = abs.m_y + label_h - 2.0f;
+		const auto button_rect = rect{ abs.m_x, button_y, width, combo_height };
+		const auto hovered = detail::mouse_in_rect( button_rect );
+
+		static std::unordered_map<std::uintptr_t, float> hover_anims{};
+		auto& hover_anim = hover_anims[ id ];
+
+		const auto hover_target = hovered ? 1.0f : 0.0f;
+		hover_anim = hover_anim + ( hover_target - hover_anim ) * std::min( 15.0f * detail::g_ctx.m_delta_time, 1.0f );
+
+		auto changed = false;
+
+		if ( hovered && detail::g_ctx.m_input.m_clicked && !detail::g_ctx.m_overlay_consuming_input )
+		{
+			detail::g_ctx.m_active_combo_id = is_open ? 0 : id;
+		}
+
+		const auto base_bg = detail::g_ctx.m_style.combo_bg;
+		const auto hover_bg = detail::g_ctx.m_style.combo_hovered;
+		const auto bg_col = zdraw::rgba
+		{
+			static_cast< std::uint8_t >( base_bg.r + ( hover_bg.r - base_bg.r ) * hover_anim ),
+			static_cast< std::uint8_t >( base_bg.g + ( hover_bg.g - base_bg.g ) * hover_anim ),
+			static_cast< std::uint8_t >( base_bg.b + ( hover_bg.b - base_bg.b ) * hover_anim ),
+			base_bg.a
+		};
+
+		const auto border_col = is_open ? detail::lighten_color( detail::g_ctx.m_style.combo_border, 1.3f ) : ( hovered ? detail::lighten_color( detail::g_ctx.m_style.combo_border, 1.15f ) : detail::g_ctx.m_style.combo_border );
+
+		const auto col_top = detail::lighten_color( bg_col, 1.1f );
+		const auto col_bottom = detail::darken_color( bg_col, 0.85f );
+		zdraw::rect_filled_multi_color( button_rect.m_x, button_rect.m_y, button_rect.m_w, button_rect.m_h, col_top, col_top, col_bottom, col_bottom );
+		zdraw::rect( button_rect.m_x, button_rect.m_y, button_rect.m_w, button_rect.m_h, border_col, 1.0f );
+
+		const auto current_text = ( current_item >= 0 && current_item < items_count ) ? items[ current_item ] : "";
+		const auto text_padding = detail::g_ctx.m_style.frame_padding_x;
+		zdraw::text( button_rect.m_x + text_padding, button_rect.m_y + 3.0f, current_text, detail::g_ctx.m_style.text );
+
+		const auto arrow_size = 6.0f;
+		const auto arrow_x = button_rect.m_x + button_rect.m_w - arrow_size - detail::g_ctx.m_style.frame_padding_x - 4.0f;
+		const auto arrow_y = button_rect.m_y + ( combo_height - arrow_size * 0.5f ) * 0.5f;
+
+		const auto arrow_col = detail::g_ctx.m_style.combo_arrow;
+
+		if ( is_open )
+		{
+			zdraw::line( arrow_x, arrow_y + 3.0f, arrow_x + arrow_size * 0.5f, arrow_y, arrow_col, 1.5f );
+			zdraw::line( arrow_x + arrow_size * 0.5f, arrow_y, arrow_x + arrow_size, arrow_y + 3.0f, arrow_col, 1.5f );
+		}
+		else
+		{
+			zdraw::line( arrow_x, arrow_y, arrow_x + arrow_size * 0.5f, arrow_y + 3.0f, arrow_col, 1.5f );
+			zdraw::line( arrow_x + arrow_size * 0.5f, arrow_y + 3.0f, arrow_x + arrow_size, arrow_y, arrow_col, 1.5f );
+		}
+
+		if ( is_open )
+		{
+			struct combo_overlay
+			{
+				rect button_rect;
+				const char* const* items;
+				int items_count;
+				int* current_item;
+				bool* changed;
+				float width;
+				bool hovered;
+				std::uintptr_t combo_id;
+
+				void operator()( )
+				{
+					const auto& style = detail::g_ctx.m_style;
+					const auto dropdown_y = button_rect.m_y + button_rect.m_h + 2.0f;
+					const auto item_height = style.combo_item_height;
+					const auto dropdown_h = items_count * item_height + 4.0f;
+
+					const auto dropdown_rect = rect{ button_rect.m_x, dropdown_y, width, dropdown_h };
+
+					const auto bg_top = style.combo_popup_bg;
+					const auto bg_bottom = detail::darken_color( bg_top, 0.9f );
+
+					zdraw::rect_filled( dropdown_rect.m_x + 2.0f, dropdown_rect.m_y + 2.0f, width, dropdown_h, zdraw::rgba{ 0, 0, 0, 60 } );
+					zdraw::rect_filled_multi_color( dropdown_rect.m_x, dropdown_rect.m_y, width, dropdown_h, bg_top, bg_top, bg_bottom, bg_bottom );
+					zdraw::rect( dropdown_rect.m_x, dropdown_rect.m_y, width, dropdown_h, detail::lighten_color( style.combo_popup_border, 1.1f ), 1.0f );
+
+					zdraw::push_clip_rect( dropdown_rect.m_x, dropdown_rect.m_y, dropdown_rect.m_x + dropdown_rect.m_w, dropdown_rect.m_y + dropdown_rect.m_h );
+
+					static std::unordered_map<std::uintptr_t, float> item_hover_anims{};
+
+					for ( int i = 0; i < items_count; ++i )
+					{
+						const auto item_y_offset = i * item_height;
+
+						const auto item_rect = rect
+						{
+							dropdown_rect.m_x + 2.0f,
+							dropdown_rect.m_y + item_y_offset + 2.0f,
+							width - 4.0f,
+							item_height - 2.0f
+						};
+
+						const auto item_hovered = detail::mouse_in_rect( item_rect );
+						const auto item_anim_id = ( combo_id ^ static_cast< std::uintptr_t >( i ) ) ^ 0x4954454D;
+						auto& item_hover_anim = item_hover_anims[ item_anim_id ];
+
+						const auto item_hover_target = item_hovered ? 1.0f : 0.0f;
+						item_hover_anim = item_hover_anim + ( item_hover_target - item_hover_anim ) * 0.3f;
+
+						if ( i == *current_item )
+						{
+							const auto selected_col = style.combo_item_selected;
+							zdraw::rect_filled( item_rect.m_x, item_rect.m_y, item_rect.m_w, item_rect.m_h, selected_col );
+
+							const auto accent_bar_col = detail::lighten_color( style.combo_arrow, 1.2f );
+							zdraw::rect_filled( item_rect.m_x, item_rect.m_y, 2.0f, item_rect.m_h, accent_bar_col );
+						}
+
+						if ( item_hover_anim > 0.01f )
+						{
+							const auto hover_col = style.combo_item_hovered;
+							auto hover_alpha = hover_col;
+							hover_alpha.a = static_cast< std::uint8_t >( hover_col.a * item_hover_anim );
+							zdraw::rect_filled( item_rect.m_x, item_rect.m_y, item_rect.m_w, item_rect.m_h, hover_alpha );
+						}
+
+						zdraw::text( dropdown_rect.m_x + style.frame_padding_x + 4.0f, dropdown_rect.m_y + item_y_offset + 3.0f, items[ i ], style.text );
+
+						if ( item_hovered && detail::g_ctx.m_input.m_clicked )
+						{
+							*current_item = i;
+							*changed = true;
+							detail::g_ctx.m_active_combo_id = 0;
+						}
+					}
+
+					zdraw::pop_clip_rect( );
+
+					if ( detail::g_ctx.m_input.m_clicked && !hovered && !detail::mouse_in_rect( dropdown_rect ) )
+					{
+						detail::g_ctx.m_active_combo_id = 0;
+					}
+				}
+			};
+
+			detail::g_ctx.m_combo_overlay_list.emplace_back( combo_overlay{ button_rect, items, items_count, &current_item, &changed, width, hovered, id } );
+			detail::g_ctx.m_overlay_consuming_input = true;
+		}
+
+		return changed;
+	}
+
+} // namespace zui

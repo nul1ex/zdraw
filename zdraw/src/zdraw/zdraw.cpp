@@ -14,6 +14,7 @@
 #include <include/zdraw/external/stb/truetype.hpp>
 #include <include/zdraw/external/stb/image.hpp>
 #include <include/zdraw/external/fonts/pixter.hpp>
+#include <include/zdraw/external/fonts/roboto.hpp>
 #include <include/zdraw/external/shaders/shaders.hpp>
 
 #pragma comment(lib, "d3d11.lib")
@@ -1418,7 +1419,7 @@ namespace zdraw {
 		if ( detail::g_render.m_normal_font == nullptr )
 		{
 			const auto font_span{ std::span( reinterpret_cast< const std::byte* >( fonts::pixter ), sizeof( fonts::pixter ) ) };
-			detail::g_render.m_normal_font = load_font_from_memory( font_span, 12.0f, 256, 256 );
+			detail::g_render.m_normal_font = load_font_from_memory( font_span, 13.0f, 512, 512 );
 		}
 
 		return detail::g_render.m_normal_font;

@@ -136,6 +136,7 @@
     <ClCompile Include="src\zdraw\zui.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\zdraw\external\fonts\roboto.hpp" />
     <ClInclude Include="include\zdraw\external\stb\image.hpp" />
     <ClInclude Include="include\zdraw\external\stb\truetype.hpp" />
     <ClInclude Include="include\zdraw\external\fonts\pixter.hpp" />

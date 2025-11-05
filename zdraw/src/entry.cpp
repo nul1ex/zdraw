@@ -473,8 +473,134 @@ namespace nbench
 
 } // namespace nbench
 
-static float g_main_x{ 100.0f };
-static float g_main_y{ 100.0f };
+namespace nmenu {
+
+	static float g_main_x{ 100.0f };
+	static float g_main_y{ 100.0f };
+
+	static void draw( )
+	{
+		zui::begin( );
+
+		static int tab{ 0 };
+
+		if ( zui::begin_window( "main", g_main_x, g_main_y, 550.0f, 500.0f ) )
+		{
+			const auto [main_w, main_h] = zui::get_content_region_avail( );
+			const auto header_width = main_w;
+			const auto header_height = main_h / 8;
+
+			if ( zui::begin_nested_window( "header", header_width, header_height ) )
+			{
+				const auto [header_w, header_h] = zui::get_content_region_avail( );
+				const auto button_width = zui::calc_item_width( 4 );
+				const auto button_height = header_h;
+
+				if ( zui::button( "combat", button_width, button_height ) )
+				{
+					tab = 0;
+				}
+
+				zui::same_line( );
+
+				if ( zui::button( "visual", button_width, button_height ) )
+				{
+					tab = 1;
+				}
+
+				zui::same_line( );
+
+				if ( zui::button( "misc", button_width, button_height ) )
+				{
+					tab = 2;
+				}
+
+				zui::same_line( );
+
+				if ( zui::button( "config", button_width, button_height ) )
+				{
+					tab = 3;
+				}
+
+				zui::end_nested_window( );
+			}
+
+			{
+				const auto [content_w, content_h] = zui::get_content_region_avail( );
+				const auto column_width = zui::calc_item_width( 2 );
+
+				if ( zui::begin_nested_window( "left", column_width, content_h ) )
+				{
+					const auto [nested_w, nested_h] = zui::get_content_region_avail( );
+					const auto group_height = ( nested_h - zui::get_style( ).item_spacing_y ) / 2.0f;
+
+					if ( zui::begin_group_box( "group 1", nested_w, group_height ) )
+					{
+						static bool test1 = false;
+						zui::checkbox( "option 1", test1 );
+
+						static int value1 = 50;
+						zui::slider_int( "value", value1, 0, 100 );
+
+						zui::end_group_box( );
+					}
+
+					if ( zui::begin_group_box( "group 2", nested_w, group_height ) )
+					{
+						static bool test2 = false;
+						zui::checkbox( "option 2", test2 );
+
+						static float value2 = 0.5f;
+						zui::slider_float( "float", value2, 0.0f, 1.0f );
+
+						zui::end_group_box( );
+					}
+
+					zui::end_nested_window( );
+				}
+
+				zui::same_line( );
+
+				if ( zui::begin_nested_window( "right", column_width, content_h ) )
+				{
+					const auto [nested_w, nested_h] = zui::get_content_region_avail( );
+					const auto group_height = ( nested_h - zui::get_style( ).item_spacing_y ) / 2.0f;
+
+					if ( zui::begin_group_box( "group 3", nested_w, group_height ) )
+					{
+						static bool test3 = false;
+						zui::checkbox( "option 3", test3 );
+
+						static int key = 0;
+						zui::keybind( "keybind", key );
+
+						zui::end_group_box( );
+					}
+
+					if ( zui::begin_group_box( "group 4", nested_w, group_height ) )
+					{
+						if ( zui::button( "button 1", nested_w - zui::get_style( ).window_padding_x * 2.0f, 24.0f ) )
+						{
+						}
+
+						constexpr const char* items[ ] = { "femboys", "oiled femboys", "something else" };
+						static int current = 0;
+						zui::combo( "mode", current, items, 3 );
+
+						zui::end_group_box( );
+					}
+
+					zui::end_nested_window( );
+				}
+			}
+
+			zui::end_window( );
+		}
+
+		zui::end( );
+	}
+
+} // namespace nmenu
 
 int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR, int )
 {
@@ -537,37 +663,8 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR, int )
 
 		zdraw::begin_frame( );
 		{
-			zui::update( );
-
-			if ( zui::begin_window( "main", g_main_x, g_main_y, 420.0f, 280.0f ) )
-			{
-				const auto main_region = zui::get_content_region_avail( );
-
-				if ( zui::begin_nested_window( "content", main_region.first, main_region.second ) )
-				{
-					const auto content_region = zui::get_content_region_avail( );
-
-					if ( zui::button( "testbutton", content_region.first, 50 ) )
-					{
-
-					}
-
-					static bool test_checkbox{ true };
-					zui::checkbox( "testbox", test_checkbox );
-
-					static float test_slider{ 0.5f };
-					zui::slider_float( "testslider", test_slider, 0.0f, 1.0f );
-
-					static int keybind_index{ 0 };
-					zui::keybind( "key", keybind_index );
-
-					zui::end_nested_window( );
-				}
-
-				zui::end_window( );
-			}
-
 			//nbench::frame( static_cast< float >( g_app.m_width ), static_cast< float >( g_app.m_height ) );
+			nmenu::draw( );
 		}
 		zdraw::end_frame( );
 
