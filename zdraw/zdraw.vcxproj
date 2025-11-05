@@ -132,7 +132,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\zdraw\zdraw.cpp" />
-    <ClCompile Include="src\test\test.cpp" />
+    <ClCompile Include="src\entry.cpp" />
     <ClCompile Include="src\zdraw\zui.cpp" />
   </ItemGroup>
   <ItemGroup>
