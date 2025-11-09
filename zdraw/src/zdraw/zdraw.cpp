@@ -352,7 +352,7 @@ namespace zdraw {
 				return nullptr;
 			}
 
-			stbtt_PackSetOversampling( &spc, 2, 2 );
+			stbtt_PackSetOversampling( &spc, 4, 2 );
 			stbtt_PackSetSkipMissingCodepoints( &spc, 1 );
 
 			stbtt_PackFontRange( &spc, reinterpret_cast< const unsigned char* >( font_data.data( ) ), 0, size_pixels, 32, 95, new_font->m_packed_char_data.get( ) );
@@ -376,12 +376,13 @@ namespace zdraw {
 			D3D11_TEXTURE2D_DESC tex_desc{};
 			tex_desc.Width = static_cast< UINT >( atlas_width );
 			tex_desc.Height = static_cast< UINT >( atlas_height );
-			tex_desc.MipLevels = 1;
+			tex_desc.MipLevels = 0;
 			tex_desc.ArraySize = 1;
-			tex_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			tex_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 			tex_desc.SampleDesc.Count = 1;
-			tex_desc.Usage = D3D11_USAGE_IMMUTABLE;
-			tex_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+			tex_desc.Usage = D3D11_USAGE_DEFAULT;
+			tex_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+			tex_desc.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
 
 			std::vector<std::uint8_t> rgba_bitmap( static_cast< std::size_t >( atlas_width ) * static_cast< std::size_t >( atlas_height ) * 4u );
 			for ( std::size_t i{ 0 }; i < static_cast< std::size_t >( atlas_width * atlas_height ); ++i )
@@ -392,18 +393,19 @@ namespace zdraw {
 				rgba_bitmap[ i * 4 + 3 ] = bitmap[ i ];
 			}
 
-			D3D11_SUBRESOURCE_DATA init_data{ rgba_bitmap.data( ), static_cast< UINT >( atlas_width * 4 ), 0u };
-
-			auto hr{ g_render.m_device->CreateTexture2D( &tex_desc, &init_data, &new_font->m_atlas->m_texture ) };
+			auto hr{ g_render.m_device->CreateTexture2D( &tex_desc, nullptr, &new_font->m_atlas->m_texture ) };
 			if ( FAILED( hr ) ) [[unlikely]]
 			{
 				return nullptr;
 			}
 
+			g_render.m_context->UpdateSubresource( new_font->m_atlas->m_texture.Get( ), 0, nullptr, rgba_bitmap.data( ), atlas_width * 4, 0 );
+
 			D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc{};
 			srv_desc.Format = tex_desc.Format;
 			srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-			srv_desc.Texture2D.MipLevels = 1;
+			srv_desc.Texture2D.MipLevels = -1;
+			srv_desc.Texture2D.MostDetailedMip = 0;
 
 			hr = g_render.m_device->CreateShaderResourceView( new_font->m_atlas->m_texture.Get( ), &srv_desc, &new_font->m_atlas->m_texture_srv );
 			if ( FAILED( hr ) ) [[unlikely]]
@@ -411,10 +413,11 @@ namespace zdraw {
 				return nullptr;
 			}
 
+			g_render.m_context->GenerateMips( new_font->m_atlas->m_texture_srv.Get( ) );
+
 			g_render.m_fonts.push_back( std::move( new_font ) );
 			return g_render.m_fonts.back( ).get( );
 		}
-
 
 		static void ensure_buffer_capacity( )
 		{
@@ -976,6 +979,30 @@ namespace zdraw {
 		this->m_commands.data( )[ this->m_commands.size( ) - 1 ].m_idx_count += static_cast< std::uint32_t >( num_segments ) * 18u;
 	}
 
+	void draw_list::add_triangle( float x0, float y0, float x1, float y1, float x2, float y2, rgba color, float thickness )
+	{
+		const float points[ 6 ]{ x0, y0, x1, y1, x2, y2 };
+		this->add_polyline( std::span<const float>{ points, 6 }, color, true, thickness );
+	}
+
+	void draw_list::add_triangle_filled( float x0, float y0, float x1, float y1, float x2, float y2, rgba color )
+	{
+		this->ensure_draw_cmd( nullptr );
+
+		const auto vtx_base{ static_cast< std::uint32_t >( this->m_vertices.size( ) ) };
+
+		this->push_vertex( x0, y0, 0.0f, 0.0f, color );
+		this->push_vertex( x1, y1, 0.0f, 0.0f, color );
+		this->push_vertex( x2, y2, 0.0f, 0.0f, color );
+
+		std::uint32_t* idx{ this->m_indices.allocate( 3 ) };
+		idx[ 0 ] = vtx_base;
+		idx[ 1 ] = vtx_base + 1;
+		idx[ 2 ] = vtx_base + 2;
+
+		this->m_commands.data( )[ this->m_commands.size( ) - 1 ].m_idx_count += 3u;
+	}
+
 	void draw_list::add_circle( float x, float y, float radius, rgba color, int segments, float thickness )
 	{
 		std::vector<float> points{};
@@ -1010,6 +1037,66 @@ namespace zdraw {
 			idx_data[ base_idx + 0 ] = vtx_base;
 			idx_data[ base_idx + 1 ] = vtx_base + 1 + static_cast< std::uint32_t >( i );
 			idx_data[ base_idx + 2 ] = vtx_base + 1 + next_vtx;
+		}
+
+		this->m_commands.data( )[ this->m_commands.size( ) - 1 ].m_idx_count += static_cast< std::uint32_t >( idx_count );
+	}
+
+	void draw_list::add_arc( float x, float y, float radius, float start_angle, float end_angle, rgba color, int segments, float thickness )
+	{
+		if ( segments < 3 ) 
+		{
+			segments = 3;
+		}
+
+		const auto angle_range{ end_angle - start_angle };
+		const auto angle_increment{ angle_range / static_cast< float >( segments ) };
+
+		std::vector<float> points{};
+		points.reserve( static_cast< std::size_t >( segments + 1 ) * 2 );
+
+		for ( int i{ 0 }; i <= segments; ++i )
+		{
+			const auto angle{ start_angle + angle_increment * static_cast< float >( i ) };
+			points.push_back( x + std::cos( angle ) * radius );
+			points.push_back( y + std::sin( angle ) * radius );
+		}
+
+		this->add_polyline( points, color, false, thickness );
+	}
+
+	void draw_list::add_arc_filled( float x, float y, float radius, float start_angle, float end_angle, rgba color, int segments )
+	{
+		if ( segments < 3 )
+		{
+			segments = 3;
+		}
+
+		this->ensure_draw_cmd( nullptr );
+
+		const auto vtx_base{ static_cast< std::uint32_t >( this->m_vertices.size( ) ) };
+		const auto angle_range{ end_angle - start_angle };
+		const auto angle_increment{ angle_range / static_cast< float >( segments ) };
+
+		this->push_vertex( x, y, 0.5f, 0.5f, color );
+
+		for ( int i{ 0 }; i <= segments; ++i )
+		{
+			const auto angle{ start_angle + angle_increment * static_cast< float >( i ) };
+			const auto px{ x + std::cos( angle ) * radius };
+			const auto py{ y + std::sin( angle ) * radius };
+			this->push_vertex( px, py, 0.5f, 0.5f, color );
+		}
+
+		const auto idx_count{ static_cast< std::size_t >( segments ) * 3u };
+		std::uint32_t* idx_data{ this->m_indices.allocate( idx_count ) };
+
+		for ( int i{ 0 }; i < segments; ++i )
+		{
+			const auto base_idx{ i * 3 };
+			idx_data[ base_idx + 0 ] = vtx_base;
+			idx_data[ base_idx + 1 ] = vtx_base + 1 + static_cast< std::uint32_t >( i );
+			idx_data[ base_idx + 2 ] = vtx_base + 1 + static_cast< std::uint32_t >( i + 1 );
 		}
 
 		this->m_commands.data( )[ this->m_commands.size( ) - 1 ].m_idx_count += static_cast< std::uint32_t >( idx_count );
@@ -1515,6 +1602,16 @@ namespace zdraw {
 		get_draw_list( ).add_polyline( points, color, closed, thickness );
 	}
 
+	void triangle( float x0, float y0, float x1, float y1, float x2, float y2, rgba color, float thickness )
+	{
+		get_draw_list( ).add_triangle( x0, y0, x1, y1, x2, y2, color, thickness );
+	}
+
+	void triangle_filled( float x0, float y0, float x1, float y1, float x2, float y2, rgba color )
+	{
+		get_draw_list( ).add_triangle_filled( x0, y0, x1, y1, x2, y2, color );
+	}
+
 	void circle( float x, float y, float radius, rgba color, int segments, float thickness )
 	{
 		get_draw_list( ).add_circle( x, y, radius, color, segments, thickness );
@@ -1523,6 +1620,16 @@ namespace zdraw {
 	void circle_filled( float x, float y, float radius, rgba color, int segments )
 	{
 		get_draw_list( ).add_circle_filled( x, y, radius, color, segments );
+	}
+
+	void arc( float x, float y, float radius, float start_angle, float end_angle, rgba color, int segments, float thickness )
+	{
+		get_draw_list( ).add_arc( x, y, radius, start_angle, end_angle, color, segments, thickness );
+	}
+
+	void arc_filled( float x, float y, float radius, float start_angle, float end_angle, rgba color, int segments )
+	{
+		get_draw_list( ).add_arc_filled( x, y, radius, start_angle, end_angle, color, segments );
 	}
 
 	std::pair<float, float> measure_text( std::string_view text, const font* fnt )

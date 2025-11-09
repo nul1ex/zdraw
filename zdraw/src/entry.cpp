@@ -332,12 +332,12 @@ namespace nmenu {
 
 } // namespace nmenu
 
-int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR, int )
+int WINAPI wWinMain( HINSTANCE instance_handle, HINSTANCE, PWSTR, int )
 {
 	g_app.m_width = 1600;
 	g_app.m_height = 1200;
 
-	g_app.m_hwnd = create_window( hInstance, g_app.m_width, g_app.m_height );
+	g_app.m_hwnd = create_window( instance_handle, g_app.m_width, g_app.m_height );
 	if ( !g_app.m_hwnd )
 	{
 		return -1;

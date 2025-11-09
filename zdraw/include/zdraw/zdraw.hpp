@@ -178,8 +178,12 @@ namespace zdraw
 		void add_rect_textured( float x, float y, float w, float h, ID3D11ShaderResourceView* tex, float u0 = 0.0f, float v0 = 0.0f, float u1 = 1.0f, float v1 = 1.0f );
 		void add_convex_poly_filled( std::span<const float> points, rgba color );
 		void add_polyline( std::span<const float> points, rgba color, bool closed = false, float thickness = 1.0f );
+		void add_triangle( float x0, float y0, float x1, float y1, float x2, float y2, rgba color, float thickness = 1.0f );
+		void add_triangle_filled( float x0, float y0, float x1, float y1, float x2, float y2, rgba color );
 		void add_circle( float x, float y, float radius, rgba color, int segments = 32, float thickness = 1.0f );
 		void add_circle_filled( float x, float y, float radius, rgba color, int segments = 32 );
+		void add_arc( float x, float y, float radius, float start_angle, float end_angle, rgba color, int segments = 32, float thickness = 1.0f );
+		void add_arc_filled( float x, float y, float radius, float start_angle, float end_angle, rgba color, int segments = 32 );
 		void add_text( float x, float y, std::string_view text, const font* font, rgba color );
 	};
 
@@ -202,7 +206,7 @@ namespace zdraw
 		float m_uv_y0{ 0.0f };
 		float m_uv_x1{ 0.0f };
 		float m_uv_y1{ 0.0f };
-		bool  m_valid{ false };
+		bool m_valid{ false };
 	};
 
 	struct font
@@ -249,7 +253,7 @@ namespace zdraw
 
 	[[nodiscard]] font* add_font_from_memory( std::span<const std::byte> font_data, float size_pixels, int atlas_width = 512, int atlas_height = 512 );
 	[[nodiscard]] font* add_font_from_file( std::string_view filepath, float size_pixels, int atlas_width = 512, int atlas_height = 512 );
-	[[nodiscard]] font* get_font( ) noexcept; 
+	[[nodiscard]] font* get_font( ) noexcept;
 	[[nodiscard]] font* get_default_font( ) noexcept;
 
 	void push_font( font* f );
@@ -266,8 +270,12 @@ namespace zdraw
 	void rect_textured( float x, float y, float w, float h, ID3D11ShaderResourceView* tex, float u0 = 0.0f, float v0 = 0.0f, float u1 = 1.0f, float v1 = 1.0f );
 	void convex_poly_filled( std::span<const float> points, rgba color );
 	void polyline( std::span<const float> points, rgba color, bool closed = false, float thickness = 1.0f );
+	void triangle( float x0, float y0, float x1, float y1, float x2, float y2, rgba color, float thickness = 1.0f );
+	void triangle_filled( float x0, float y0, float x1, float y1, float x2, float y2, rgba color );
 	void circle( float x, float y, float radius, rgba color, int segments = 32, float thickness = 1.0f );
 	void circle_filled( float x, float y, float radius, rgba color, int segments = 32 );
+	void arc( float x, float y, float radius, float start_angle, float end_angle, rgba color, int segments = 32, float thickness = 1.0f );
+	void arc_filled( float x, float y, float radius, float start_angle, float end_angle, rgba color, int segments = 32 );
 
 	template <typename style = tstyles::normal>
 	void text( float x, float y, std::string_view str, rgba color, const font* fnt = nullptr )
@@ -280,11 +288,11 @@ namespace zdraw
 		}
 		else if constexpr ( std::is_same_v<style, tstyles::outlined> )
 		{
-			constexpr float offsets[ 8 ][ 2 ]{ {-1.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, -1.0f}, {0.0f, 1.0f}, {-1.0f, -1.0f}, {-1.0f, 1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f} };
+			constexpr float offsets[ 4 ][ 2 ]{ {-1.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, -1.0f}, {0.0f, 1.0f} };
 
 			for ( int i{ 0 }; i < 8; ++i )
 			{
-				get_draw_list( ).add_text( x + offsets[ i ][ 0 ], y + offsets[ i ][ 1 ], str, f, rgba( 0, 0, 0, 235) );
+				get_draw_list( ).add_text( x + offsets[ i ][ 0 ], y + offsets[ i ][ 1 ], str, f, rgba( 0, 0, 0, 235 ) );
 			}
 
 			get_draw_list( ).add_text( x, y, str, f, color );
