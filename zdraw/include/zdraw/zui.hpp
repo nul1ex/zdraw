@@ -152,6 +152,7 @@ namespace zui {
 	void pop_style_color( int count = 1 );
 
 	void same_line( float offset_x = 0.0f );
+	void new_line( );
 
 	bool checkbox( std::string_view label, bool& v );
 	bool button( std::string_view label, float w, float h );
@@ -161,6 +162,7 @@ namespace zui {
 	bool slider_int( std::string_view label, int& v, int v_min, int v_max );
 
 	bool combo( std::string_view label, int& current_item, const char* const items[ ], int items_count, float width = 0.0f );
+	bool color_picker( std::string_view label, zdraw::rgba& color, float width = 0.0f );
 
 	enum class color_preset
 	{

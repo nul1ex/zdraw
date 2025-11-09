@@ -51,6 +51,18 @@ namespace zui {
 			bool was_changed{ false };
 		};
 
+		struct color_picker_popup_data
+		{
+			rect swatch_rect{};
+			zdraw::rgba* color_ptr{ nullptr };
+			float hue_value{ 0.0f };
+			float sv_x{ 0.0f };
+			float sv_y{ 0.0f };
+			bool swatch_hovered{ false };
+			std::uintptr_t picker_id{ 0 };
+			bool was_changed{ false };
+		};
+
 		struct context
 		{
 			HWND m_hwnd{ nullptr };
@@ -63,6 +75,7 @@ namespace zui {
 			std::uintptr_t m_active_resize_id{ 0 };
 			std::uintptr_t m_active_slider_id{ 0 };
 			std::uintptr_t m_active_keybind_id{ 0 };
+			std::uintptr_t m_active_color_picker_component{ 0 };
 
 			zui::style m_style{};
 			std::vector<style_var_backup> m_style_var_stack{};
@@ -72,6 +85,10 @@ namespace zui {
 			bool m_overlay_consuming_input{ false };
 			std::uintptr_t m_changed_combo_id{ 0 };
 			std::optional<combo_popup_data> m_active_popup{};
+
+			std::uintptr_t m_active_color_picker_id{ 0 };
+			std::uintptr_t m_changed_color_picker_id{ 0 };
+			std::optional<color_picker_popup_data> m_active_color_picker_popup{};
 
 			float m_delta_time{ 0.0f };
 			std::chrono::high_resolution_clock::time_point m_last_frame_time{};
@@ -91,11 +108,6 @@ namespace zui {
 			}
 
 			return h;
-		}
-
-		static std::uintptr_t hash_str( std::string_view s )
-		{
-			return fnv1a64( s.data( ), s.size( ) );
 		}
 
 		static void update_input( )
@@ -129,6 +141,28 @@ namespace zui {
 			}
 
 			return &g_ctx.m_windows.back( );
+		}
+
+		static std::uintptr_t hash_str( std::string_view s )
+		{
+			auto win = current_window( );
+			auto h = fnv1a64( s.data( ), s.size( ) );
+
+			if ( win )
+			{
+				h ^= static_cast< std::uintptr_t >( win->m_cursor_x * 1000.0f );
+				h *= 1099511628211ull;
+				h ^= static_cast< std::uintptr_t >( win->m_cursor_y * 1000.0f );
+				h *= 1099511628211ull;
+			}
+
+			for ( const auto& parent_id : g_ctx.m_id_stack )
+			{
+				h ^= parent_id;
+				h *= 1099511628211ull;
+			}
+
+			return h;
 		}
 
 		static rect item_add( float w, float h )
@@ -274,7 +308,7 @@ namespace zui {
 		detail::g_ctx.m_id_stack.clear( );
 	}
 
-	void end( )
+	void end( ) // remind my ass to add multiple drawlists to zdraw???
 	{
 		if ( detail::g_ctx.m_active_popup.has_value( ) )
 		{
@@ -349,11 +383,229 @@ namespace zui {
 			detail::g_ctx.m_active_popup.reset( );
 		}
 
+		if ( detail::g_ctx.m_active_color_picker_popup.has_value( ) )
+		{
+			auto& popup = detail::g_ctx.m_active_color_picker_popup.value( );
+
+			if ( detail::g_ctx.m_active_color_picker_id == popup.picker_id )
+			{
+				const auto popup_w = 180.0f;
+				const auto popup_h = 220.0f;
+				const auto popup_x = popup.swatch_rect.m_x;
+				const auto popup_y = popup.swatch_rect.m_y + popup.swatch_rect.m_h + 2.0f;
+				const auto popup_rect = rect{ popup_x, popup_y, popup_w, popup_h };
+
+				const auto& style = detail::g_ctx.m_style;
+				const auto bg_top = style.combo_popup_bg;
+				const auto bg_bottom = detail::darken_color( bg_top, 0.9f );
+
+				zdraw::rect_filled_multi_color( popup_rect.m_x, popup_rect.m_y, popup_w, popup_h, bg_top, bg_top, bg_bottom, bg_bottom );
+				zdraw::rect( popup_rect.m_x, popup_rect.m_y, popup_w, popup_h, detail::lighten_color( style.combo_popup_border, 1.1f ), 1.0f );
+				zdraw::push_clip_rect( popup_rect.m_x, popup_rect.m_y, popup_rect.m_x + popup_rect.m_w, popup_rect.m_y + popup_rect.m_h );
+
+				const auto pad = 8.0f;
+				const auto sv_size = popup_w - pad * 2.0f;
+				const auto sv_rect = rect{ popup_x + pad, popup_y + pad, sv_size, sv_size };
+
+				for ( int y = 0; y < static_cast< int >( sv_size ); ++y )
+				{
+					for ( int x = 0; x < static_cast< int >( sv_size ); ++x )
+					{
+						const auto s = x / sv_size;
+						const auto v = 1.0f - ( y / sv_size );
+						const auto h = popup.hue_value * 360.0f;
+
+						auto c = v * s;
+						auto h_prime = h / 60.0f;
+						auto x_val = c * ( 1.0f - std::abs( std::fmod( h_prime, 2.0f ) - 1.0f ) );
+
+						float r1, g1, b1;
+						if ( h_prime < 1.0f ) { r1 = c; g1 = x_val; b1 = 0; }
+						else if ( h_prime < 2.0f ) { r1 = x_val; g1 = c; b1 = 0; }
+						else if ( h_prime < 3.0f ) { r1 = 0; g1 = c; b1 = x_val; }
+						else if ( h_prime < 4.0f ) { r1 = 0; g1 = x_val; b1 = c; }
+						else if ( h_prime < 5.0f ) { r1 = x_val; g1 = 0; b1 = c; }
+						else { r1 = c; g1 = 0; b1 = x_val; }
+
+						auto m = v - c;
+						zdraw::rgba pixel_color
+						{
+							static_cast< std::uint8_t >( ( r1 + m ) * 255.0f ),
+							static_cast< std::uint8_t >( ( g1 + m ) * 255.0f ),
+							static_cast< std::uint8_t >( ( b1 + m ) * 255.0f ),
+							255
+						};
+
+						zdraw::rect_filled( sv_rect.m_x + x, sv_rect.m_y + y, 1.0f, 1.0f, pixel_color );
+					}
+				}
+
+				const auto hue_y = sv_rect.m_y + sv_rect.m_h + pad;
+				const auto hue_h = 14.0f;
+				const auto hue_rect = rect{ popup_x + pad, hue_y, sv_size, hue_h };
+
+				for ( int x = 0; x < static_cast< int >( sv_size ); ++x )
+				{
+					const auto h = ( x / sv_size ) * 360.0f;
+					const auto h_prime = h / 60.0f;
+
+					float r1, g1, b1;
+					auto c = 1.0f;
+					auto x_val = c * ( 1.0f - std::abs( std::fmod( h_prime, 2.0f ) - 1.0f ) );
+
+					if ( h_prime < 1.0f ) { r1 = c; g1 = x_val; b1 = 0; }
+					else if ( h_prime < 2.0f ) { r1 = x_val; g1 = c; b1 = 0; }
+					else if ( h_prime < 3.0f ) { r1 = 0; g1 = c; b1 = x_val; }
+					else if ( h_prime < 4.0f ) { r1 = 0; g1 = x_val; b1 = c; }
+					else if ( h_prime < 5.0f ) { r1 = x_val; g1 = 0; b1 = c; }
+					else { r1 = c; g1 = 0; b1 = x_val; }
+
+					zdraw::rgba hue_color
+					{
+						static_cast< std::uint8_t >( r1 * 255.0f ),
+						static_cast< std::uint8_t >( g1 * 255.0f ),
+						static_cast< std::uint8_t >( b1 * 255.0f ),
+						255
+					};
+
+					zdraw::rect_filled( hue_rect.m_x + x, hue_rect.m_y, 1.0f, hue_rect.m_h, hue_color );
+				}
+
+				const auto alpha_y = hue_y + hue_h + pad * 0.5f;
+				const auto alpha_rect = rect{ popup_x + pad, alpha_y, sv_size, hue_h };
+
+				for ( int x = 0; x < static_cast< int >( sv_size ); x += 8 )
+				{
+					for ( int y = 0; y < static_cast< int >( hue_h ); y += 8 )
+					{
+						const auto is_dark = ( ( x / 8 ) + ( y / 8 ) ) % 2 == 0;
+						const auto checker_col = is_dark ? zdraw::rgba{ 180, 180, 180, 255 } : zdraw::rgba{ 220, 220, 220, 255 };
+						zdraw::rect_filled( alpha_rect.m_x + x, alpha_rect.m_y + y, std::min( 8.0f, sv_size - x ), std::min( 8.0f, hue_h - y ), checker_col );
+					}
+				}
+
+				for ( int x = 0; x < static_cast< int >( sv_size ); ++x )
+				{
+					const auto alpha = static_cast< std::uint8_t >( ( x / sv_size ) * 255.0f );
+					const auto alpha_color = zdraw::rgba{ popup.color_ptr->r, popup.color_ptr->g, popup.color_ptr->b, alpha };
+					zdraw::rect_filled( alpha_rect.m_x + x, alpha_rect.m_y, 1.0f, alpha_rect.m_h, alpha_color );
+				}
+
+				const auto sv_hovered = detail::mouse_in_rect( sv_rect );
+				const auto hue_hovered = detail::mouse_in_rect( hue_rect );
+				const auto alpha_hovered = detail::mouse_in_rect( alpha_rect );
+
+				if ( detail::g_ctx.m_input.m_clicked && detail::g_ctx.m_active_color_picker_component == 0 )
+				{
+					if ( sv_hovered )
+					{
+						detail::g_ctx.m_active_color_picker_component = 1;
+					}
+					else if ( hue_hovered )
+					{
+						detail::g_ctx.m_active_color_picker_component = 2;
+					}
+					else if ( alpha_hovered )
+					{
+						detail::g_ctx.m_active_color_picker_component = 3;
+					}
+				}
+
+				if ( detail::g_ctx.m_active_color_picker_component == 1 && detail::g_ctx.m_input.m_down )
+				{
+					popup.sv_x = std::clamp( ( detail::g_ctx.m_input.m_x - sv_rect.m_x ) / sv_rect.m_w, 0.0f, 1.0f );
+					popup.sv_y = std::clamp( ( detail::g_ctx.m_input.m_y - sv_rect.m_y ) / sv_rect.m_h, 0.0f, 1.0f );
+
+					const auto h = popup.hue_value * 360.0f;
+					const auto s = popup.sv_x;
+					const auto v = 1.0f - popup.sv_y;
+
+					auto c = v * s;
+					auto h_prime = h / 60.0f;
+					auto x_val = c * ( 1.0f - std::abs( std::fmod( h_prime, 2.0f ) - 1.0f ) );
+
+					float r1, g1, b1;
+					if ( h_prime < 1.0f ) { r1 = c; g1 = x_val; b1 = 0; }
+					else if ( h_prime < 2.0f ) { r1 = x_val; g1 = c; b1 = 0; }
+					else if ( h_prime < 3.0f ) { r1 = 0; g1 = c; b1 = x_val; }
+					else if ( h_prime < 4.0f ) { r1 = 0; g1 = x_val; b1 = c; }
+					else if ( h_prime < 5.0f ) { r1 = x_val; g1 = 0; b1 = c; }
+					else { r1 = c; g1 = 0; b1 = x_val; }
+
+					auto m = v - c;
+					popup.color_ptr->r = static_cast< std::uint8_t >( ( r1 + m ) * 255.0f );
+					popup.color_ptr->g = static_cast< std::uint8_t >( ( g1 + m ) * 255.0f );
+					popup.color_ptr->b = static_cast< std::uint8_t >( ( b1 + m ) * 255.0f );
+
+					detail::g_ctx.m_changed_color_picker_id = popup.picker_id;
+				}
+
+				if ( detail::g_ctx.m_active_color_picker_component == 2 && detail::g_ctx.m_input.m_down )
+				{
+					popup.hue_value = std::clamp( ( detail::g_ctx.m_input.m_x - hue_rect.m_x ) / hue_rect.m_w, 0.0f, 1.0f );
+
+					const auto h = popup.hue_value * 360.0f;
+					const auto s = popup.sv_x;
+					const auto v = 1.0f - popup.sv_y;
+
+					auto c = v * s;
+					auto h_prime = h / 60.0f;
+					auto x_val = c * ( 1.0f - std::abs( std::fmod( h_prime, 2.0f ) - 1.0f ) );
+
+					float r1, g1, b1;
+					if ( h_prime < 1.0f ) { r1 = c; g1 = x_val; b1 = 0; }
+					else if ( h_prime < 2.0f ) { r1 = x_val; g1 = c; b1 = 0; }
+					else if ( h_prime < 3.0f ) { r1 = 0; g1 = c; b1 = x_val; }
+					else if ( h_prime < 4.0f ) { r1 = 0; g1 = x_val; b1 = c; }
+					else if ( h_prime < 5.0f ) { r1 = x_val; g1 = 0; b1 = c; }
+					else { r1 = c; g1 = 0; b1 = x_val; }
+
+					auto m = v - c;
+					popup.color_ptr->r = static_cast< std::uint8_t >( ( r1 + m ) * 255.0f );
+					popup.color_ptr->g = static_cast< std::uint8_t >( ( g1 + m ) * 255.0f );
+					popup.color_ptr->b = static_cast< std::uint8_t >( ( b1 + m ) * 255.0f );
+
+					detail::g_ctx.m_changed_color_picker_id = popup.picker_id;
+				}
+
+				if ( detail::g_ctx.m_active_color_picker_component == 3 && detail::g_ctx.m_input.m_down )
+				{
+					const auto alpha_norm = std::clamp( ( detail::g_ctx.m_input.m_x - alpha_rect.m_x ) / alpha_rect.m_w, 0.0f, 1.0f );
+					popup.color_ptr->a = static_cast< std::uint8_t >( alpha_norm * 255.0f );
+					detail::g_ctx.m_changed_color_picker_id = popup.picker_id;
+				}
+
+				const auto cursor_x = sv_rect.m_x + popup.sv_x * sv_rect.m_w;
+				const auto cursor_y = sv_rect.m_y + popup.sv_y * sv_rect.m_h;
+				zdraw::rect( cursor_x - 4.0f, cursor_y - 4.0f, 8.0f, 8.0f, zdraw::rgba{ 255, 255, 255, 255 }, 2.0f );
+				zdraw::rect( cursor_x - 3.0f, cursor_y - 3.0f, 6.0f, 6.0f, zdraw::rgba{ 0, 0, 0, 255 }, 1.0f );
+
+				const auto hue_cursor_x = hue_rect.m_x + popup.hue_value * hue_rect.m_w;
+				zdraw::rect( hue_cursor_x - 2.0f, hue_rect.m_y - 2.0f, 4.0f, hue_rect.m_h + 4.0f, zdraw::rgba{ 255, 255, 255, 255 }, 2.0f );
+				zdraw::rect( hue_cursor_x - 1.0f, hue_rect.m_y - 1.0f, 2.0f, hue_rect.m_h + 2.0f, zdraw::rgba{ 0, 0, 0, 255 }, 1.0f );
+
+				const auto alpha_cursor_x = alpha_rect.m_x + ( popup.color_ptr->a / 255.0f ) * alpha_rect.m_w;
+				zdraw::rect( alpha_cursor_x - 2.0f, alpha_rect.m_y - 2.0f, 4.0f, alpha_rect.m_h + 4.0f, zdraw::rgba{ 255, 255, 255, 255 }, 2.0f );
+				zdraw::rect( alpha_cursor_x - 1.0f, alpha_rect.m_y - 1.0f, 2.0f, alpha_rect.m_h + 2.0f, zdraw::rgba{ 0, 0, 0, 255 }, 1.0f );
+
+				zdraw::pop_clip_rect( );
+
+				detail::g_ctx.m_overlay_consuming_input = true;
+				if ( detail::g_ctx.m_input.m_clicked && !popup.swatch_hovered && !detail::mouse_in_rect( popup_rect ) )
+				{
+					detail::g_ctx.m_active_color_picker_id = 0;
+				}
+			}
+
+			detail::g_ctx.m_active_color_picker_popup.reset( );
+		}
+
 		if ( detail::g_ctx.m_input.m_released )
 		{
 			detail::g_ctx.m_active_window_id = 0;
 			detail::g_ctx.m_active_resize_id = 0;
 			detail::g_ctx.m_active_slider_id = 0;
+			detail::g_ctx.m_active_color_picker_component = 0;
 		}
 	}
 
@@ -387,12 +639,12 @@ namespace zui {
 			abs.m_w = w;
 			abs.m_h = h;
 		}
-		else if ( window_hovered && !grip_hovered && detail::g_ctx.m_input.m_clicked && detail::g_ctx.m_active_window_id == 0 && detail::g_ctx.m_active_slider_id == 0 && detail::g_ctx.m_active_resize_id == 0 )
+		else if ( window_hovered && !grip_hovered && detail::g_ctx.m_input.m_clicked && detail::g_ctx.m_active_window_id == 0 && detail::g_ctx.m_active_slider_id == 0 && detail::g_ctx.m_active_resize_id == 0 && detail::g_ctx.m_active_color_picker_component == 0 )
 		{
 			detail::g_ctx.m_active_window_id = id;
 		}
 
-		if ( detail::g_ctx.m_active_window_id == id && detail::g_ctx.m_input.m_down && detail::g_ctx.m_active_slider_id == 0 && detail::g_ctx.m_active_resize_id == 0 )
+		if ( detail::g_ctx.m_active_window_id == id && detail::g_ctx.m_input.m_down && detail::g_ctx.m_active_slider_id == 0 && detail::g_ctx.m_active_resize_id == 0 && detail::g_ctx.m_active_color_picker_component == 0 )
 		{
 			const auto dx = detail::g_ctx.m_input.m_x - detail::g_ctx.m_prev_input.m_x;
 			const auto dy = detail::g_ctx.m_input.m_y - detail::g_ctx.m_prev_input.m_y;
@@ -704,6 +956,23 @@ namespace zui {
 		}
 	}
 
+	void new_line( )
+	{
+		auto win = detail::current_window( );
+		if ( !win )
+		{
+			return;
+		}
+
+		if ( win->m_line_h > 0.0f )
+		{
+			win->m_cursor_y += win->m_line_h + detail::g_ctx.m_style.item_spacing_y;
+		}
+
+		win->m_cursor_x = detail::g_ctx.m_style.window_padding_x;
+		win->m_line_h = 0.0f;
+	}
+
 	bool checkbox( std::string_view label, bool& v )
 	{
 		auto win = detail::current_window( );
@@ -723,7 +992,7 @@ namespace zui {
 		const auto hovered = detail::mouse_in_rect( abs );
 		auto changed = false;
 
-		if ( hovered && detail::g_ctx.m_input.m_clicked )
+		if ( hovered && detail::g_ctx.m_input.m_clicked && !detail::g_ctx.m_overlay_consuming_input && detail::g_ctx.m_active_combo_id == 0 && detail::g_ctx.m_active_color_picker_id == 0 )
 		{
 			v = !v;
 			changed = true;
@@ -790,7 +1059,7 @@ namespace zui {
 		auto local = detail::item_add( w, h );
 		auto abs = detail::item_rect_abs( local );
 
-		const auto hovered = detail::mouse_in_rect( abs );
+		const auto hovered = detail::mouse_in_rect( abs ) && !detail::g_ctx.m_overlay_consuming_input && detail::g_ctx.m_active_combo_id == 0 && detail::g_ctx.m_active_color_picker_id == 0;
 		const auto held = hovered && detail::g_ctx.m_input.m_down;
 		const auto pressed = hovered && detail::g_ctx.m_input.m_clicked;
 
@@ -897,7 +1166,7 @@ namespace zui {
 		const auto held = hovered && detail::g_ctx.m_input.m_down;
 		const auto pressed = hovered && detail::g_ctx.m_input.m_clicked;
 
-		if ( pressed )
+		if ( pressed && !detail::g_ctx.m_overlay_consuming_input && detail::g_ctx.m_active_combo_id == 0 && detail::g_ctx.m_active_color_picker_id == 0 )
 		{
 			detail::g_ctx.m_active_keybind_id = id;
 		}
@@ -1042,14 +1311,14 @@ namespace zui {
 		const auto hovered = detail::mouse_in_rect( frame_rect );
 		auto changed = false;
 
-		if ( hovered && detail::g_ctx.m_input.m_clicked && detail::g_ctx.m_active_slider_id == 0 )
+		if ( hovered && detail::g_ctx.m_input.m_clicked && detail::g_ctx.m_active_slider_id == 0 && !detail::g_ctx.m_overlay_consuming_input && detail::g_ctx.m_active_combo_id == 0 && detail::g_ctx.m_active_color_picker_id == 0 )
 		{
 			detail::g_ctx.m_active_slider_id = id;
 		}
 
 		const auto is_active = detail::g_ctx.m_active_slider_id == id;
 
-		if ( is_active && detail::g_ctx.m_input.m_down )
+		if ( is_active && detail::g_ctx.m_input.m_down && !detail::g_ctx.m_overlay_consuming_input && detail::g_ctx.m_active_combo_id == 0 && detail::g_ctx.m_active_color_picker_id == 0 )
 		{
 			const auto normalized = std::clamp( ( detail::g_ctx.m_input.m_x - frame_rect.m_x ) / frame_rect.m_w, 0.0f, 1.0f );
 
@@ -1158,7 +1427,7 @@ namespace zui {
 		const auto hover_target = hovered ? 1.0f : 0.0f;
 		hover_anim = hover_anim + ( hover_target - hover_anim ) * std::min( 15.0f * detail::g_ctx.m_delta_time, 1.0f );
 
-		if ( hovered && detail::g_ctx.m_input.m_clicked && !detail::g_ctx.m_overlay_consuming_input )
+		if ( hovered && detail::g_ctx.m_input.m_clicked && !detail::g_ctx.m_overlay_consuming_input && detail::g_ctx.m_active_color_picker_id == 0 )
 		{
 			detail::g_ctx.m_active_combo_id = is_open ? 0 : id;
 		}
@@ -1217,6 +1486,123 @@ namespace zui {
 		{
 			zdraw::line( arrow_x, arrow_y, arrow_x + arrow_size * 0.5f, arrow_y + 3.0f, arrow_col, 1.5f );
 			zdraw::line( arrow_x + arrow_size * 0.5f, arrow_y + 3.0f, arrow_x + arrow_size, arrow_y, arrow_col, 1.5f );
+		}
+
+		return changed;
+	}
+
+	bool color_picker( std::string_view label, zdraw::rgba& color, float width )
+	{
+		auto win = detail::current_window( );
+		if ( !win )
+		{
+			return false;
+		}
+
+		const auto id = detail::hash_str( label );
+		const auto is_open = ( detail::g_ctx.m_active_color_picker_id == id );
+
+		auto changed = ( detail::g_ctx.m_changed_color_picker_id == id );
+		if ( changed )
+		{
+			detail::g_ctx.m_changed_color_picker_id = 0;
+		}
+
+		const auto swatch_size = 14.0f;
+		const auto has_label = !label.empty( );
+
+		auto label_w = 0.0f;
+		auto label_h = 0.0f;
+		if ( has_label )
+		{
+			auto text_size = zdraw::measure_text( label );
+			label_w = text_size.first;
+			label_h = text_size.second;
+		}
+
+		const auto total_w = has_label ? ( swatch_size + detail::g_ctx.m_style.item_spacing_x + label_w ) : swatch_size;
+		const auto total_h = has_label ? std::max( swatch_size, label_h ) : swatch_size;
+
+		auto local = detail::item_add( total_w, total_h );
+		auto abs = detail::item_rect_abs( local );
+
+		auto x_offset = 0.0f;
+		if ( width > 0.0f )
+		{
+			x_offset = width - total_w;
+		}
+
+		const auto swatch_y = has_label ? ( abs.m_y + ( total_h - swatch_size ) * 0.5f ) : abs.m_y;
+		const auto swatch_rect = rect{ abs.m_x + x_offset, swatch_y, swatch_size, swatch_size };
+		const auto hovered = detail::mouse_in_rect( swatch_rect );
+
+		if ( hovered && detail::g_ctx.m_input.m_clicked && !detail::g_ctx.m_overlay_consuming_input && detail::g_ctx.m_active_combo_id == 0 )
+		{
+			detail::g_ctx.m_active_color_picker_id = is_open ? 0 : id;
+		}
+
+		const auto bg_col = detail::g_ctx.m_style.checkbox_bg;
+		const auto border_col = is_open ? detail::lighten_color( detail::g_ctx.m_style.checkbox_border, 1.3f ) : ( hovered ? detail::lighten_color( detail::g_ctx.m_style.checkbox_border, 1.15f ) : detail::g_ctx.m_style.checkbox_border );
+
+		zdraw::rect_filled( swatch_rect.m_x, swatch_rect.m_y, swatch_rect.m_w, swatch_rect.m_h, bg_col );
+
+		constexpr auto checker_size = 4.0f;
+		for ( float y = 0; y < swatch_size; y += checker_size )
+		{
+			for ( float x = 0; x < swatch_size; x += checker_size )
+			{
+				const auto is_dark = ( static_cast< int >( x / checker_size ) + static_cast< int >( y / checker_size ) ) % 2 == 0;
+				const auto checker_col = is_dark ? zdraw::rgba{ 180, 180, 180, 255 } : zdraw::rgba{ 220, 220, 220, 255 };
+				zdraw::rect_filled( swatch_rect.m_x + x, swatch_rect.m_y + y, std::min( checker_size, swatch_size - x ), std::min( checker_size, swatch_size - y ), checker_col );
+			}
+		}
+
+		zdraw::rect_filled( swatch_rect.m_x, swatch_rect.m_y, swatch_rect.m_w, swatch_rect.m_h, color );
+		zdraw::rect( swatch_rect.m_x, swatch_rect.m_y, swatch_rect.m_w, swatch_rect.m_h, border_col, 1.0f );
+
+		if ( has_label )
+		{
+			const auto text_x = swatch_rect.m_x + swatch_rect.m_w + detail::g_ctx.m_style.item_spacing_x;
+			const auto text_y = abs.m_y + ( total_h - label_h ) * 0.5f;
+
+			std::string label_str( label.begin( ), label.end( ) );
+			zdraw::text( text_x, text_y + 3.5f, label_str, detail::g_ctx.m_style.text );
+		}
+
+		if ( is_open )
+		{
+			detail::color_picker_popup_data popup{};
+			popup.swatch_rect = swatch_rect;
+			popup.color_ptr = &color;
+			popup.swatch_hovered = hovered;
+			popup.picker_id = id;
+
+			auto r = color.r / 255.0f;
+			auto g = color.g / 255.0f;
+			auto b = color.b / 255.0f;
+
+			auto max_c = std::max( { r, g, b } );
+			auto min_c = std::min( { r, g, b } );
+			auto delta = max_c - min_c;
+
+			auto h = 0.0f;
+			auto s = ( max_c != 0.0f ) ? ( delta / max_c ) : 0.0f;
+			auto v = max_c;
+
+			if ( delta != 0.0f )
+			{
+				if ( max_c == r ) { h = 60.0f * std::fmod( ( g - b ) / delta, 6.0f ); }
+				else if ( max_c == g ) { h = 60.0f * ( 2.0f + ( b - r ) / delta ); }
+				else { h = 60.0f * ( 4.0f + ( r - g ) / delta ); }
+			}
+
+			if ( h < 0.0f ) { h += 360.0f; }
+
+			popup.hue_value = h / 360.0f;
+			popup.sv_x = s;
+			popup.sv_y = 1.0f - v;
+
+			detail::g_ctx.m_active_color_picker_popup = std::move( popup );
 		}
 
 		return changed;

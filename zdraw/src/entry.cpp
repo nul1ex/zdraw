@@ -247,10 +247,17 @@ namespace nmenu {
 					if ( zui::begin_group_box( "group 1", nested_w, group_height ) )
 					{
 						static bool test1 = false;
-						zui::checkbox( "option 1", test1 );
+						zui::checkbox( "option", test1 );
+
+						zui::same_line( );
+
+						static zdraw::rgba color{ 255, 0, 0, 255 };
+						zui::color_picker( "", color, zui::get_content_region_avail( ).first );
+
+						zui::new_line( );
 
 						static bool test2 = false;
-						zui::checkbox( "option 2", test2 );
+						zui::checkbox( "option", test2 );
 
 						static int value1 = 50;
 						zui::slider_int( "int", value1, 0, 100 );
