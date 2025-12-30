@@ -1,7 +1,7 @@
 #ifndef ANIMATION_HPP
 #define ANIMATION_HPP
 
-#include <include/zdraw/zui/types.hpp>
+#include "types.hpp"
 #include <include/zdraw/zdraw.hpp>
 
 #include <unordered_map>

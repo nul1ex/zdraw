@@ -12,8 +12,6 @@ namespace render {
 		long long __stdcall procedure( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam );
 
 		inline HWND hwnd{ nullptr };
-		inline bool is_dragging{ false };
-		inline POINT drag_offset{};
 
 	} // namespace window
 

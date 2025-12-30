@@ -198,58 +198,58 @@
     <ClInclude Include="include\zdraw\external\unordered_dense.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\zdraw\zui\widgets\button.hpp">
+    <ClInclude Include="include\zdraw\zui\core\widgets\button.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\zdraw\zui\widgets\checkbox.hpp">
+    <ClInclude Include="include\zdraw\zui\core\widgets\checkbox.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\zdraw\zui\widgets\color_picker.hpp">
+    <ClInclude Include="include\zdraw\zui\core\widgets\color_picker.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\zdraw\zui\widgets\combo.hpp">
+    <ClInclude Include="include\zdraw\zui\core\widgets\combo.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\zdraw\zui\widgets\keybind.hpp">
+    <ClInclude Include="include\zdraw\zui\core\widgets\keybind.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\zdraw\zui\widgets\multicombo.hpp">
+    <ClInclude Include="include\zdraw\zui\core\widgets\multicombo.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\zdraw\zui\widgets\slider.hpp">
+    <ClInclude Include="include\zdraw\zui\core\widgets\slider.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\zdraw\zui\widgets\text.hpp">
+    <ClInclude Include="include\zdraw\zui\core\widgets\text.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\zdraw\zui\widgets\text_input.hpp">
+    <ClInclude Include="include\zdraw\zui\core\widgets\text_input.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\zdraw\zui\animation.hpp">
+    <ClInclude Include="include\zdraw\zui\core\animation.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\zdraw\zui\color.hpp">
+    <ClInclude Include="include\zdraw\zui\core\color.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\zdraw\zui\context.hpp">
+    <ClInclude Include="include\zdraw\zui\core\context.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\zdraw\zui\input.hpp">
+    <ClInclude Include="include\zdraw\zui\core\input.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\zdraw\zui\layout.hpp">
+    <ClInclude Include="include\zdraw\zui\core\layout.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\zdraw\zui\overlay.hpp">
+    <ClInclude Include="include\zdraw\zui\core\overlay.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\zdraw\zui\style.hpp">
+    <ClInclude Include="include\zdraw\zui\core\style.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\zdraw\zui\types.hpp">
+    <ClInclude Include="include\zdraw\zui\core\types.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\zdraw\zui\widgets.hpp">
+    <ClInclude Include="include\zdraw\zui\core\widgets.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\zdraw\zui\zui.hpp">
@@ -264,6 +264,24 @@
     <ClInclude Include="include\render\render.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\zdraw\zscene\core\viewport.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\zdraw\zscene\core\model.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\zdraw\zscene\core\loader.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\zdraw\external\cgltf\cgltf.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\zdraw\zscene\zscene.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\zdraw\zscene\core\renderer.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\menu\menu.cpp">
@@ -276,6 +294,21 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\render\render.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\zdraw\zscene\core\loader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\zdraw\zscene\core\model.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\zdraw\zscene\core\viewport.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\zdraw\zscene\core\renderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\zdraw\zscene\zscene.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

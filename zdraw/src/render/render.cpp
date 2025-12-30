@@ -14,6 +14,18 @@ namespace render {
 			return false;
 		}
 
+		if ( !zdraw::initialize( directx::device, directx::device_context ) )
+		{
+			return false;
+		}
+
+		if ( !zui::initialize( window::hwnd ) )
+		{
+			return false;
+		}
+
+		menu::initialize( directx::device, directx::device_context );
+
 		return true;
 	}
 
@@ -41,10 +53,17 @@ namespace render {
 				break;
 			}
 
+			{
+				menu::update( );
+			}
+
 			directx::device_context->OMSetRenderTargets( 1, &directx::render_target_view, nullptr );
 			directx::device_context->ClearRenderTargetView( directx::render_target_view, clear_color );
 
 			zdraw::begin_frame( );
+			{
+				menu::draw( );
+			}
 			zdraw::end_frame( );
 
 			directx::swap_chain->Present( 1, 0 );
@@ -68,16 +87,12 @@ namespace render {
 			return false;
 		}
 
-		const auto width{ GetSystemMetrics( SM_CXSCREEN ) };
-		const auto height{ GetSystemMetrics( SM_CYSCREEN ) };
-
-		hwnd = CreateWindowExW( WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT, L"zdraw", L"zdraw example", WS_POPUP, 0, 0, width, height, nullptr, nullptr, wc.hInstance, nullptr );
+		hwnd = CreateWindowExW( 0, L"zdraw", L"zdraw demo", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 1280, 720, nullptr, nullptr, wc.hInstance, nullptr );
 		if ( !hwnd )
 		{
 			return false;
 		}
 
-		SetLayeredWindowAttributes( hwnd, RGB( 0, 0, 0 ), 0, LWA_COLORKEY );
 		ShowWindow( hwnd, SW_SHOWDEFAULT );
 		UpdateWindow( hwnd );
 
@@ -88,49 +103,11 @@ namespace render {
 	{
 		switch ( msg )
 		{
-
-		case WM_LBUTTONDOWN:
-		{
-			is_dragging = true;
-			SetCapture( hwnd );
-
-			POINT cursor{};
-			GetCursorPos( &cursor );
-
-			RECT rect{};
-			GetWindowRect( hwnd, &rect );
-
-			drag_offset.x = cursor.x - rect.left;
-			drag_offset.y = cursor.y - rect.top;
-			return 0;
-		}
-
-		case WM_LBUTTONUP:
-		{
-			is_dragging = false;
-			ReleaseCapture( );
-
-			return 0;
-		}
-
-		case WM_MOUSEMOVE:
-		{
-			if ( is_dragging )
-			{
-				POINT cursor{};
-				GetCursorPos( &cursor );
-				SetWindowPos( hwnd, nullptr, cursor.x - drag_offset.x, cursor.y - drag_offset.y, 0, 0, SWP_NOSIZE | SWP_NOZORDER );
-			}
-
-			return 0;
-		}
-
 		case WM_DESTROY:
 		{
 			PostQuitMessage( 0 );
 			return 0;
 		}
-
 		}
 
 		return DefWindowProcW( hwnd, msg, wparam, lparam );
@@ -184,16 +161,6 @@ namespace render {
 		};
 
 		device_context->RSSetViewports( 1, &viewport );
-
-		if ( !zdraw::initialize( device, device_context ) )
-		{
-			return false;
-		}
-
-		if ( !zui::initialize( window::hwnd ) )
-		{
-			return false;
-		}
 
 		return true;
 	}

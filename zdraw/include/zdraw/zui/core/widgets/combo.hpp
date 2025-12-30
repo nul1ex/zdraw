@@ -269,7 +269,7 @@ namespace zui {
 		const auto hover_anim = anims.animate( id, ( hovered || is_open ) ? 1.0f : 0.0f, 15.0f );
 
 		const auto bg_col = lerp( style.combo_bg, style.combo_hovered, hover_anim );
-		const auto border_col = is_open? lighten( style.combo_border, 1.3f ): ( hovered ? lighten( style.combo_border, 1.15f ) : style.combo_border );
+		const auto border_col = is_open ? lighten( style.combo_border, 1.3f ) : ( hovered ? lighten( style.combo_border, 1.15f ) : style.combo_border );
 
 		zdraw::rect_filled( button_rect.x, button_rect.y, button_rect.w, button_rect.h, bg_col );
 		zdraw::rect( button_rect.x, button_rect.y, button_rect.w, button_rect.h, border_col );

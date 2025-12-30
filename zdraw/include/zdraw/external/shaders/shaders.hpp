@@ -3,7 +3,7 @@
 
 namespace shaders {
 
-    constexpr const char* vertex_shader_src = R"(
+	constexpr const char* vertex_shader_src = R"(
         cbuffer ProjectionBuffer : register(b0)
         {
             float4x4 projection;
@@ -33,7 +33,7 @@ namespace shaders {
         }
     )";
 
-    constexpr const char* pixel_shader_src = R"(
+	constexpr const char* pixel_shader_src = R"(
         Texture2D tex     : register(t0);
         SamplerState samp : register(s0);
 
@@ -51,101 +51,140 @@ namespace shaders {
         }
     )";
 
-    constexpr const char* blur_horizontal_src = R"(
-        Texture2D tex : register(t0);
+	constexpr const char* zscene_vertex_shader_src = R"(
+		cbuffer TransformBuffer : register(b0)
+		{
+			float4x4 world;
+			float4x4 view;
+			float4x4 projection;
+		};
+
+		cbuffer BoneBuffer : register(b1)
+		{
+			float4x4 bones[512];
+		};
+
+		struct VS_INPUT
+		{
+			float3 position : POSITION;
+			float3 normal : NORMAL;
+			float2 uv : TEXCOORD;
+			uint4 bone_indices : BLENDINDICES;
+			float4 bone_weights : BLENDWEIGHT;
+		};
+
+		struct VS_OUTPUT
+		{
+			float4 position : SV_POSITION;
+			float3 normal : NORMAL;
+			float2 uv : TEXCOORD0;
+			float3 world_pos : TEXCOORD1;
+		};
+
+		VS_OUTPUT main(VS_INPUT input)
+		{
+			VS_OUTPUT output;
+    
+			float4 skinned_pos = float4(0, 0, 0, 0);
+			float3 skinned_normal = float3(0, 0, 0);
+    
+			float total_weight = input.bone_weights.x + input.bone_weights.y + input.bone_weights.z + input.bone_weights.w;
+    
+			if (total_weight > 0.0001f)
+			{
+				for (int i = 0; i < 4; ++i)
+				{
+					float weight = 0;
+					uint idx = 0;
+            
+					if (i == 0) { weight = input.bone_weights.x; idx = input.bone_indices.x; }
+					else if (i == 1) { weight = input.bone_weights.y; idx = input.bone_indices.y; }
+					else if (i == 2) { weight = input.bone_weights.z; idx = input.bone_indices.z; }
+					else { weight = input.bone_weights.w; idx = input.bone_indices.w; }
+            
+					if (weight > 0.0001f)
+					{
+						float4x4 bone_mat = bones[idx];
+						skinned_pos += mul(float4(input.position, 1.0f), bone_mat) * weight;
+						skinned_normal += mul(input.normal, (float3x3)bone_mat) * weight;
+					}
+				}
+			}
+			else
+			{
+				skinned_pos = float4(input.position, 1.0f);
+				skinned_normal = input.normal;
+			}
+    
+			float4 world_pos = mul(skinned_pos, world);
+			output.world_pos = world_pos.xyz;
+			output.position = mul(mul(world_pos, view), projection);
+			output.normal = normalize(mul(skinned_normal, (float3x3)world));
+			output.uv = input.uv;
+    
+			return output;
+		}
+	)";
+
+	constexpr const char* zscene_pixel_shader_src = R"(
+	    Texture2D albedo_texture : register(t0);
+	    SamplerState samp : register(s0);
+
+	    struct PS_INPUT
+	    {
+	        float4 position : SV_POSITION;
+	        float3 normal : NORMAL;
+	        float2 uv : TEXCOORD0;
+	        float3 world_pos : TEXCOORD1;
+	    };
+
+	    float4 main(PS_INPUT input) : SV_TARGET
+	    {
+	        float4 albedo = albedo_texture.Sample(samp, input.uv);
+	        float3 normal = normalize(input.normal);
+
+	        float3 light_dir = normalize(float3(0.5f, 1.0f, 0.3f));
+	        float ndotl = max(dot(normal, light_dir), 0.0f);
+
+	        float shadow = smoothstep(0.2f, 0.4f, ndotl);
+	        float3 diffuse = albedo.rgb * (shadow * 0.6f + 0.4f);
+
+	        float3 view_dir = normalize(-input.world_pos);
+	        float rim = 1.0f - saturate(dot(normal, view_dir));
+	        rim = pow(rim, 3.0f) * 0.2f;
+	        diffuse += albedo.rgb * rim;
+
+	        float luminance = dot(diffuse, float3(0.299f, 0.587f, 0.114f));
+	        float3 final_color = lerp(float3(luminance, luminance, luminance), diffuse, 1.3f);
+
+	        return float4(final_color, albedo.a);
+	    }
+	)";
+
+	// if you want a normal without special effects:
+	constexpr const char* zscene_pixel_shader_basic_src = R"(
+        Texture2D albedo_texture : register(t0);
         SamplerState samp : register(s0);
 
-        cbuffer BlurParams : register(b0)
-        {
-            float2 texel_size;
-            float blur_radius;
-            float padding;
-        };
-
         struct PS_INPUT
         {
-            float4 pos : SV_POSITION;
-            float2 uv  : TEXCOORD0;
+            float4 position : SV_POSITION;
+            float3 normal : NORMAL;
+            float2 uv : TEXCOORD0;
+            float3 world_pos : TEXCOORD1;
         };
 
-        float4 main(PS_INPUT input) : SV_Target
+        float4 main(PS_INPUT input) : SV_TARGET
         {
-            float4 color = float4(0.0, 0.0, 0.0, 0.0);
-            float total_weight = 0.0;
+            float4 albedo = albedo_texture.Sample(samp, input.uv);
 
-            int radius = (int)blur_radius;
-            float sigma = blur_radius * 0.5;
-            float two_sigma_sq = 2.0 * sigma * sigma;
+            float3 light_dir = normalize(float3(0.5f, 1.0f, 0.3f));
+            float3 normal = normalize(input.normal);
 
-            for (int i = -radius; i <= radius; i++)
-            {
-                float weight = exp(-(float)(i * i) / two_sigma_sq);
-                float2 offset = float2(texel_size.x * (float)i, 0.0);
-                color += tex.Sample(samp, input.uv + offset) * weight;
-                total_weight += weight;
-            }
+            float ndotl = max(dot(normal, light_dir), 0.0f);
+            float3 diffuse = albedo.rgb * (ndotl * 0.7f + 0.3f);
 
-            return color / total_weight;
-        }
-    )";
-
-    constexpr const char* blur_vertical_src = R"(
-        Texture2D tex : register(t0);
-        SamplerState samp : register(s0);
-
-        cbuffer BlurParams : register(b0)
-        {
-            float2 texel_size;
-            float blur_radius;
-            float padding;
-        };
-
-        struct PS_INPUT
-        {
-            float4 pos : SV_POSITION;
-            float2 uv  : TEXCOORD0;
-        };
-
-        float4 main(PS_INPUT input) : SV_Target
-        {
-            float4 color = float4(0.0, 0.0, 0.0, 0.0);
-            float total_weight = 0.0;
-
-            int radius = (int)blur_radius;
-            float sigma = blur_radius * 0.5;
-            float two_sigma_sq = 2.0 * sigma * sigma;
-
-            for (int i = -radius; i <= radius; i++)
-            {
-                float weight = exp(-(float)(i * i) / two_sigma_sq);
-                float2 offset = float2(0.0, texel_size.y * (float)i);
-                color += tex.Sample(samp, input.uv + offset) * weight;
-                total_weight += weight;
-            }
-
-            return color / total_weight;
-        }
-    )";
-
-    constexpr const char* blur_vertex_src = R"(
-        struct VS_INPUT
-        {
-            float2 pos : POSITION;
-            float2 uv  : TEXCOORD0;
-        };
-
-        struct PS_INPUT
-        {
-            float4 pos : SV_POSITION;
-            float2 uv  : TEXCOORD0;
-        };
-
-        PS_INPUT main(VS_INPUT input)
-        {
-            PS_INPUT output;
-            output.pos = float4(input.pos, 0.0, 1.0);
-            output.uv  = input.uv;
-            return output;
+            return float4(diffuse, albedo.a);
         }
     )";
 

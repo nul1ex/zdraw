@@ -1,26 +1,13 @@
-#include <include/zdraw/zdraw.hpp>
-
-#include <algorithm>
-#include <fstream>
-#include <numbers>
-#include <cstring>
-#include <cmath>
-
-#include <d3dcompiler.h>
+#include <include/global.hpp>
 
 #include <ft2build.h>
+#include <freetype/freetype.h>
 
-#include FT_FREETYPE_H
 #define STB_IMAGE_IMPLEMENTATION
 
 #include <include/zdraw/external/stb/image.hpp>
 #include <include/zdraw/external/fonts/inter.hpp>
 #include <include/zdraw/external/shaders/shaders.hpp>
-
-#pragma comment(lib, "d3d11.lib")
-#pragma comment(lib, "d3dcompiler.lib")
-#pragma comment(lib, "dwmapi.lib")
-#pragma comment(lib, "dxgi.lib")
 
 namespace zdraw {
 
@@ -148,14 +135,18 @@ namespace zdraw {
 
 			[[nodiscard]] bool needs_scissor( const D3D11_RECT& r ) const noexcept
 			{
-				if ( !m_has_scissor ) return true;
-				return m_last_scissor.left != r.left || m_last_scissor.top != r.top || m_last_scissor.right != r.right || m_last_scissor.bottom != r.bottom;
+				if ( !this->m_has_scissor )
+				{
+					return true;
+				}
+
+				return this->m_last_scissor.left != r.left || this->m_last_scissor.top != r.top || this->m_last_scissor.right != r.right || this->m_last_scissor.bottom != r.bottom;
 			}
 
 			void set_scissor( const D3D11_RECT& r ) noexcept
 			{
-				m_last_scissor = r;
-				m_has_scissor = true;
+				this->m_last_scissor = r;
+				this->m_has_scissor = true;
 			}
 		};
 
@@ -391,20 +382,18 @@ namespace zdraw {
 			{
 				const char c{ static_cast< char >( 32 + i ) };
 
-				FT_Int32 load_flags = FT_LOAD_RENDER | FT_LOAD_TARGET_LIGHT;
-
-				if ( FT_Load_Char( ft_face, c, load_flags ) != 0 )
+				if ( FT_Load_Char( ft_face, c, FT_LOAD_RENDER | FT_LOAD_TARGET_LIGHT ) != 0 )
 				{
 					auto& info{ new_font->m_glyph_info[ i ] };
 					info.m_advance_x = size_pixels * 0.5f;
 					continue;
 				}
 
-				FT_GlyphSlot glyph{ ft_face->glyph };
-				FT_Bitmap& bitmap{ glyph->bitmap };
+				auto glyph{ ft_face->glyph };
+				auto& bitmap{ glyph->bitmap };
 
-				const int glyph_width{ static_cast< int >( bitmap.width ) };
-				const int glyph_height{ static_cast< int >( bitmap.rows ) };
+				const auto glyph_width{ static_cast< int >( bitmap.width ) };
+				const auto glyph_height{ static_cast< int >( bitmap.rows ) };
 
 				if ( pen_x + glyph_width + padding > atlas_width )
 				{
@@ -422,10 +411,10 @@ namespace zdraw {
 				{
 					for ( int x{ 0 }; x < glyph_width; ++x )
 					{
-						const int atlas_x{ pen_x + x };
-						const int atlas_y{ pen_y + y };
-						const std::size_t atlas_idx{ static_cast< std::size_t >( atlas_y * atlas_width + atlas_x ) * 4u };
-						const std::size_t bitmap_idx{ static_cast< std::size_t >( y * bitmap.pitch + x ) };
+						const auto atlas_x{ pen_x + x };
+						const auto atlas_y{ pen_y + y };
+						const auto atlas_idx{ static_cast< std::size_t >( atlas_y * atlas_width + atlas_x ) * 4u };
+						const auto bitmap_idx{ static_cast< std::size_t >( y * bitmap.pitch + x ) };
 
 						rgba_bitmap[ atlas_idx + 0 ] = 255u;
 						rgba_bitmap[ atlas_idx + 1 ] = 255u;
@@ -607,14 +596,15 @@ namespace zdraw {
 	{
 		auto actual_texture{ texture != nullptr ? texture : detail::g_render.m_white_texture_srv.Get( ) };
 		const auto has_clip = !this->m_clip_stack.empty( );
+		D3D11_RECT clip{};
 
-		D3D11_RECT clip = {};
 		if ( has_clip )
 		{
 			clip = this->m_clip_stack.back( );
 		}
 
-		auto need_new_cmd = false;
+		auto need_new_cmd{ false };
+
 		if ( this->m_commands.size( ) == 0 )
 		{
 			need_new_cmd = true;

@@ -1,14 +1,14 @@
 #ifndef ZUI_HPP
 #define ZUI_HPP
 
-#include "types.hpp"	
-#include "style.hpp"	
-#include "color.hpp"	
-#include "input.hpp"	
-#include "animation.hpp"	
-#include "context.hpp"	
-#include "layout.hpp"	
-#include "widgets.hpp"	
+#include "core/types.hpp"
+#include "core/style.hpp"
+#include "core/color.hpp"
+#include "core/input.hpp"
+#include "core/animation.hpp"
+#include "core/context.hpp"
+#include "core/layout.hpp"
+#include "core/widgets.hpp"
 
 namespace zui {
 

@@ -179,40 +179,40 @@ namespace zui {
 			const auto dt = zdraw::get_delta_time( );
 
 			auto process_key = [ &state, dt ]( int vk ) -> bool
-			{
-				const auto is_down = ( GetAsyncKeyState( vk ) & 0x8000 ) != 0;
-				const auto was_down = state.key_was_down[ vk ];
-				state.key_was_down[ vk ] = is_down;
-
-				if ( !is_down )
 				{
-					state.key_repeat_timers[ vk ] = 0.0f;
-					return false;
-				}
+					const auto is_down = ( GetAsyncKeyState( vk ) & 0x8000 ) != 0;
+					const auto was_down = state.key_was_down[ vk ];
+					state.key_was_down[ vk ] = is_down;
 
-				if ( !was_down )
-				{
-					state.key_repeat_timers[ vk ] = 0.0f;
-					return true;
-				}
-
-				state.key_repeat_timers[ vk ] += dt;
-				constexpr auto initial_delay = 0.4f;
-				constexpr auto repeat_rate = 0.03f;
-
-				if ( state.key_repeat_timers[ vk ] >= initial_delay )
-				{
-					const auto excess = state.key_repeat_timers[ vk ] - initial_delay;
-					const auto repeats = static_cast< int >( excess / repeat_rate );
-					const auto prev_repeats = static_cast< int >( ( excess - dt ) / repeat_rate );
-					if ( repeats > prev_repeats )
+					if ( !is_down )
 					{
+						state.key_repeat_timers[ vk ] = 0.0f;
+						return false;
+					}
+
+					if ( !was_down )
+					{
+						state.key_repeat_timers[ vk ] = 0.0f;
 						return true;
 					}
-				}
 
-				return false;
-			};
+					state.key_repeat_timers[ vk ] += dt;
+					constexpr auto initial_delay = 0.4f;
+					constexpr auto repeat_rate = 0.03f;
+
+					if ( state.key_repeat_timers[ vk ] >= initial_delay )
+					{
+						const auto excess = state.key_repeat_timers[ vk ] - initial_delay;
+						const auto repeats = static_cast< int >( excess / repeat_rate );
+						const auto prev_repeats = static_cast< int >( ( excess - dt ) / repeat_rate );
+						if ( repeats > prev_repeats )
+						{
+							return true;
+						}
+					}
+
+					return false;
+				};
 
 			const auto has_selection = state.selection_start != state.selection_end;
 			const auto sel_min = std::min( state.selection_start, state.selection_end );
