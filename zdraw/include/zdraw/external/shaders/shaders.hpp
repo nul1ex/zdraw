@@ -127,42 +127,6 @@ namespace shaders {
 	)";
 
 	constexpr const char* zscene_pixel_shader_src = R"(
-	    Texture2D albedo_texture : register(t0);
-	    SamplerState samp : register(s0);
-
-	    struct PS_INPUT
-	    {
-	        float4 position : SV_POSITION;
-	        float3 normal : NORMAL;
-	        float2 uv : TEXCOORD0;
-	        float3 world_pos : TEXCOORD1;
-	    };
-
-	    float4 main(PS_INPUT input) : SV_TARGET
-	    {
-	        float4 albedo = albedo_texture.Sample(samp, input.uv);
-	        float3 normal = normalize(input.normal);
-
-	        float3 light_dir = normalize(float3(0.5f, 1.0f, 0.3f));
-	        float ndotl = max(dot(normal, light_dir), 0.0f);
-
-	        float shadow = smoothstep(0.2f, 0.4f, ndotl);
-	        float3 diffuse = albedo.rgb * (shadow * 0.6f + 0.4f);
-
-	        float3 view_dir = normalize(-input.world_pos);
-	        float rim = 1.0f - saturate(dot(normal, view_dir));
-	        rim = pow(rim, 3.0f) * 0.2f;
-	        diffuse += albedo.rgb * rim;
-
-	        float luminance = dot(diffuse, float3(0.299f, 0.587f, 0.114f));
-	        float3 final_color = lerp(float3(luminance, luminance, luminance), diffuse, 1.3f);
-
-	        return float4(final_color, albedo.a);
-	    }
-	)";
-
-	// if you want a normal without special effects:
-	constexpr const char* zscene_pixel_shader_basic_src = R"(
         Texture2D albedo_texture : register(t0);
         SamplerState samp : register(s0);
 

@@ -3,10 +3,6 @@
 #define CGLTF_IMPLEMENTATION
 #include <include/zdraw/external/cgltf/cgltf.h>
 
-#include <fstream>
-#include <filesystem>
-#include <unordered_map>
-
 namespace zscene {
 
 	static std::string get_directory( const std::string& filepath )

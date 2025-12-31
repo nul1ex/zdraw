@@ -5,7 +5,8 @@ namespace menu {
 	void initialize( ID3D11Device* device, ID3D11DeviceContext* context )
 	{
 		demo_scene.initialize( device, context, 400, 300 );
-		demo_scene.load_model( "demo.glb", true, true, true );
+		demo_scene.load_model( "demo.glb", true, true );
+		demo_scene.set_orientation( zscene::orientation::none );
 		demo_scene.enable_auto_rotate( true );
 
 		demo_scene.set_clear_color( 0.0f, 0.0f, 0.0f, 0.0f );

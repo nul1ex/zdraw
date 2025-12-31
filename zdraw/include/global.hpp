@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <fstream>
 #include <numbers>
+#include <filesystem>
 
 // directx
 #include <d3d11.h>

@@ -8,6 +8,13 @@
 
 namespace zscene {
 
+	enum class orientation
+	{
+		none,
+		z_up,
+		x_up
+	};
+
 	struct bone_screen_pos
 	{
 		float x{ 0.0f };
@@ -25,9 +32,11 @@ namespace zscene {
 		void update( float delta_time );
 		void render( );
 
-		bool load_model( const std::string& filepath, bool auto_fit = true, bool auto_camera = true, bool auto_orient = true );
+		bool load_model( const std::string& filepath, bool auto_fit = true, bool auto_camera = true );
 		void auto_fit_model( float target_size = 1.8f );
 		void auto_position_camera( float distance_multiplier = 1.5f );
+
+		void set_orientation( orientation orient );
 
 		void play( );
 		void pause( );
@@ -54,6 +63,7 @@ namespace zscene {
 		[[nodiscard]] float get_animation_time( ) const;
 		[[nodiscard]] float get_playback_speed( ) const;
 		[[nodiscard]] float get_rotation_angle( ) const;
+		[[nodiscard]] orientation get_orientation( ) const;
 		[[nodiscard]] const XMMATRIX& get_world_transform( ) const;
 		[[nodiscard]] const model& get_model( ) const;
 		[[nodiscard]] const camera& get_camera( ) const;
@@ -62,7 +72,7 @@ namespace zscene {
 		[[nodiscard]] camera& get_camera( );
 
 	private:
-		void detect_and_correct_orientation( );
+		void apply_orientation( );
 		void recalculate_bounds_after_orientation( );
 		void update_world_transform( );
 
@@ -88,6 +98,12 @@ namespace zscene {
 		bool m_auto_rotate{ false };
 		float m_rotation_speed{ 0.5f };
 		float m_rotation_angle{ 0.0f };
+
+		orientation m_orientation{ orientation::none };
+		XMFLOAT3 m_original_bounds_min{};
+		XMFLOAT3 m_original_bounds_max{};
+		XMFLOAT3 m_original_center{};
+		float m_original_bounding_radius{ 0.0f };
 	};
 
 } // namespace zscene

@@ -49,7 +49,7 @@ namespace zscene {
 		this->m_viewport.end( this->m_context );
 	}
 
-	bool scene::load_model( const std::string& filepath, bool auto_fit, bool auto_camera, bool auto_orient )
+	bool scene::load_model( const std::string& filepath, bool auto_fit, bool auto_camera )
 	{
 		if ( !load_gltf( filepath, this->m_model ) )
 		{
@@ -63,10 +63,13 @@ namespace zscene {
 
 		this->m_model.calculate_bounds( );
 
-		if ( auto_orient )
-		{
-			this->detect_and_correct_orientation( );
-		}
+		this->m_original_bounds_min = this->m_model.bounds_min;
+		this->m_original_bounds_max = this->m_model.bounds_max;
+		this->m_original_center = this->m_model.center;
+		this->m_original_bounding_radius = this->m_model.bounding_radius;
+
+		this->m_orientation = orientation::none;
+		this->m_orientation_correction = XMMatrixIdentity( );
 
 		if ( auto_fit )
 		{
@@ -79,6 +82,46 @@ namespace zscene {
 		}
 
 		return true;
+	}
+
+	void scene::set_orientation( orientation orient )
+	{
+		if ( this->m_orientation == orient )
+		{
+			return;
+		}
+
+		this->m_model.bounds_min = this->m_original_bounds_min;
+		this->m_model.bounds_max = this->m_original_bounds_max;
+		this->m_model.center = this->m_original_center;
+		this->m_model.bounding_radius = this->m_original_bounding_radius;
+
+		this->m_orientation = orient;
+
+		this->apply_orientation( );
+		this->auto_fit_model( );
+		this->auto_position_camera( );
+	}
+
+	void scene::apply_orientation( )
+	{
+		switch ( this->m_orientation )
+		{
+		case orientation::z_up:
+			this->m_orientation_correction = XMMatrixRotationX( -XM_PIDIV2 );
+			this->recalculate_bounds_after_orientation( );
+			break;
+
+		case orientation::x_up:
+			this->m_orientation_correction = XMMatrixRotationZ( XM_PIDIV2 );
+			this->recalculate_bounds_after_orientation( );
+			break;
+
+		case orientation::none:
+		default:
+			this->m_orientation_correction = XMMatrixIdentity( );
+			break;
+		}
 	}
 
 	void scene::auto_fit_model( float target_size )
@@ -162,37 +205,16 @@ namespace zscene {
 	float scene::get_animation_time( ) const { return this->m_animation_time; }
 	float scene::get_playback_speed( ) const { return this->m_playback_speed; }
 	float scene::get_rotation_angle( ) const { return this->m_rotation_angle; }
+	orientation scene::get_orientation( ) const { return this->m_orientation; }
 	const XMMATRIX& scene::get_world_transform( ) const { return this->m_world_transform; }
 	const model& scene::get_model( ) const { return this->m_model; }
 	const camera& scene::get_camera( ) const { return this->m_camera; }
 	model& scene::get_model( ) { return this->m_model; }
 	camera& scene::get_camera( ) { return this->m_camera; }
 
-	void scene::detect_and_correct_orientation( )
-	{
-		const auto dx = this->m_model.bounds_max.x - this->m_model.bounds_min.x;
-		const auto dy = this->m_model.bounds_max.y - this->m_model.bounds_min.y;
-		const auto dz = this->m_model.bounds_max.z - this->m_model.bounds_min.z;
-
-		if ( dz > dy )
-		{
-			this->m_orientation_correction = XMMatrixRotationX( XM_PIDIV2 );
-			this->recalculate_bounds_after_orientation( );
-		}
-		else if ( dx > dy )
-		{
-			this->m_orientation_correction = XMMatrixRotationZ( -XM_PIDIV2 );
-			this->recalculate_bounds_after_orientation( );
-		}
-		else
-		{
-			this->m_orientation_correction = XMMatrixIdentity( );
-		}
-	}
-
 	void scene::recalculate_bounds_after_orientation( )
 	{
-		const XMFLOAT3 corners[ 8 ] = 
+		const XMFLOAT3 corners[ 8 ] =
 		{
 			{ this->m_model.bounds_min.x, this->m_model.bounds_min.y, this->m_model.bounds_min.z },
 			{ this->m_model.bounds_max.x, this->m_model.bounds_min.y, this->m_model.bounds_min.z },
