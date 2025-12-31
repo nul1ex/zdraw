@@ -65,9 +65,9 @@ namespace menu {
 
 		{
 			static auto win2_x = 570.0f, win2_y = 50.0f;
-			static auto win2_w = 420.0f, win2_h = 528.0f;
+			static auto win2_w = 420.0f, win2_h = 538.0f;
 
-			if ( zui::begin_window( "widgets", win2_x, win2_y, win2_w, win2_h, true, 350.0f, 528.0f, true ) )
+			if ( zui::begin_window( "widgets", win2_x, win2_y, win2_w, win2_h, true, 350.0f, 538.0f, true ) )
 			{
 				auto [avail_w, avail_h] = zui::get_content_region_avail( );
 

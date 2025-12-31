@@ -279,7 +279,7 @@ namespace zui {
 		const auto& style = ctx( ).get_style( );
 		auto& input = ctx( ).input( );
 
-		constexpr auto grip_size = 16.0f;
+		constexpr auto grip_size{ 16.0f };
 		const auto grip_rect = rect{ abs.right( ) - grip_size, abs.bottom( ) - grip_size, grip_size, grip_size };
 
 		const auto grip_hovered = resizable && input.hovered( grip_rect );

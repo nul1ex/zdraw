@@ -1240,31 +1240,53 @@ namespace zdraw {
 		this->ensure_draw_cmd( nullptr );
 
 		const auto vtx_base{ static_cast< std::uint32_t >( this->m_vertices.size( ) ) };
-		const auto idx_count{ static_cast< std::size_t >( segments ) * 3u };
-		auto idx_data{ this->m_indices.allocate( idx_count ) };
+
+		constexpr auto aa_fringe{ 1.0f };
+		const auto inner_radius = radius - aa_fringe * 0.5f;
+		const auto outer_radius = radius + aa_fringe * 0.5f;
+
+		auto transparent = color;
+		transparent.a = 0;
 
 		this->push_vertex( x, y, 0.5f, 0.5f, color );
 
 		const auto angle_increment{ 2.0f * std::numbers::pi_v<float> / static_cast< float >( segments ) };
+
 		for ( int i{ 0 }; i < segments; ++i )
 		{
 			const auto angle{ angle_increment * static_cast< float >( i ) };
-			const auto px{ x + std::cos( angle ) * radius };
-			const auto py{ y + std::sin( angle ) * radius };
-			this->push_vertex( px, py, 0.5f, 0.5f, color );
+			const auto cos_a = std::cos( angle );
+			const auto sin_a = std::sin( angle );
+
+			this->push_vertex( x + cos_a * inner_radius, y + sin_a * inner_radius, 0.5f, 0.5f, color );
+			this->push_vertex( x + cos_a * outer_radius, y + sin_a * outer_radius, 0.5f, 0.5f, transparent );
 		}
 
-		for ( int i{ 0 }; i < segments; ++i )
+		const auto tri_count = segments * 3;
+		auto idx = this->m_indices.allocate( static_cast< std::size_t >( tri_count ) * 3u );
+
+		for ( int i = 0; i < segments; ++i )
 		{
-			const auto base_idx{ i * 3 };
-			const auto next_vtx{ static_cast< std::uint32_t >( ( i + 1 ) % segments ) };
+			const auto next = ( i + 1 ) % segments;
 
-			idx_data[ base_idx + 0 ] = vtx_base;
-			idx_data[ base_idx + 1 ] = vtx_base + 1 + static_cast< std::uint32_t >( i );
-			idx_data[ base_idx + 2 ] = vtx_base + 1 + next_vtx;
+			const auto curr_inner = vtx_base + 1 + static_cast< std::uint32_t >( i * 2 );
+			const auto curr_outer = vtx_base + 2 + static_cast< std::uint32_t >( i * 2 );
+			const auto next_inner = vtx_base + 1 + static_cast< std::uint32_t >( next * 2 );
+			const auto next_outer = vtx_base + 2 + static_cast< std::uint32_t >( next * 2 );
+
+			const auto base_idx = i * 9;
+			idx[ base_idx + 0 ] = vtx_base; 
+			idx[ base_idx + 1 ] = curr_inner;
+			idx[ base_idx + 2 ] = next_inner;
+			idx[ base_idx + 3 ] = curr_inner;
+			idx[ base_idx + 4 ] = curr_outer;
+			idx[ base_idx + 5 ] = next_outer;
+			idx[ base_idx + 6 ] = curr_inner;
+			idx[ base_idx + 7 ] = next_outer;
+			idx[ base_idx + 8 ] = next_inner;
 		}
 
-		this->m_commands.data( )[ this->m_commands.size( ) - 1 ].m_idx_count += static_cast< std::uint32_t >( idx_count );
+		this->m_commands.data( )[ this->m_commands.size( ) - 1 ].m_idx_count += static_cast< std::uint32_t >( tri_count ) * 3u;
 	}
 
 	void draw_list::add_arc( float x, float y, float radius, float start_angle, float end_angle, rgba color, int segments, float thickness )

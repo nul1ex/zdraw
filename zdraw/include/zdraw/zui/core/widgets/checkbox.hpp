@@ -6,7 +6,6 @@
 #include "../color.hpp"
 
 #include <include/zdraw/zdraw.hpp>
-#include <algorithm>
 
 namespace zui {
 
@@ -35,7 +34,8 @@ namespace zui {
 		const auto can_interact = !ctx( ).overlay_blocking_input( );
 		const auto hovered = can_interact && input.hovered( extended );
 
-		auto changed = false;
+		auto changed{ false };
+
 		if ( hovered && input.mouse_clicked( ) )
 		{
 			v = !v;
@@ -57,7 +57,7 @@ namespace zui {
 
 		if ( ease_t > 0.01f )
 		{
-			constexpr auto pad = 2.0f;
+			constexpr auto pad{ 2.0f };
 			const auto inner_w = abs.w - pad * 2.0f;
 			const auto inner_h = abs.h - pad * 2.0f;
 
