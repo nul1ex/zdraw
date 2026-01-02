@@ -8,11 +8,13 @@
 // linking
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3dcompiler.lib")
+#pragma comment(lib, "windowscodecs.lib")
 
 // standard
 #include <windows.h>
 #include <dwmapi.h>
 #include <wrl/client.h>
+#include <wincodec.h>
 
 #include <vector>
 #include <array>

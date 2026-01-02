@@ -7,7 +7,7 @@ namespace zscene {
 	using Microsoft::WRL::ComPtr;
 
 	constexpr auto k_max_bones_per_vertex{ 4 };
-	constexpr auto k_max_bones{ 512 };
+	constexpr auto k_max_bones{ 600 };
 
 	struct skinned_vertex
 	{

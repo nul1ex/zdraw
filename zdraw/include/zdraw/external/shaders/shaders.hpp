@@ -61,7 +61,7 @@ namespace shaders {
 
 		cbuffer BoneBuffer : register(b1)
 		{
-			float4x4 bones[512];
+			float4x4 bones[600];
 		};
 
 		struct VS_INPUT

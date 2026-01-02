@@ -16,7 +16,6 @@
 #include <memory>
 #include <utility>
 
-#include "external/stb/truetype.hpp"
 #include "external/unordered_dense.hpp"
 
 namespace zdraw {

@@ -196,8 +196,6 @@
     <ClInclude Include="include\zdraw\external\freetype\freetype\tttags.h" />
     <ClInclude Include="include\zdraw\external\freetype\ft2build.h" />
     <ClInclude Include="include\zdraw\external\shaders\shaders.hpp" />
-    <ClInclude Include="include\zdraw\external\stb\image.hpp" />
-    <ClInclude Include="include\zdraw\external\stb\truetype.hpp" />
     <ClInclude Include="include\zdraw\external\unordered_dense.hpp" />
     <ClInclude Include="include\zdraw\zdraw.hpp" />
     <ClInclude Include="include\zdraw\zscene\core\loader.hpp" />

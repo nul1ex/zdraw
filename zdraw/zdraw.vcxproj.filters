@@ -189,12 +189,6 @@
     <ClInclude Include="include\zdraw\external\shaders\shaders.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\zdraw\external\stb\image.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\zdraw\external\stb\truetype.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="include\zdraw\external\unordered_dense.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>

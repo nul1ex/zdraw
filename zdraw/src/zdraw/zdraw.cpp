@@ -3,9 +3,6 @@
 #include <ft2build.h>
 #include <freetype/freetype.h>
 
-#define STB_IMAGE_IMPLEMENTATION
-
-#include <include/zdraw/external/stb/image.hpp>
 #include <include/zdraw/external/fonts/inter.hpp>
 #include <include/zdraw/external/shaders/shaders.hpp>
 
@@ -1818,22 +1815,74 @@ namespace zdraw {
 
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> load_texture_from_memory( std::span<const std::byte> data, int* out_width, int* out_height )
 	{
-		auto width{ 0 };
-		auto height{ 0 };
-		auto channels{ 0 };
+		static Microsoft::WRL::ComPtr<IWICImagingFactory> factory = [ ] {
+			( void )CoInitializeEx( nullptr, COINIT_MULTITHREADED );
+			Microsoft::WRL::ComPtr<IWICImagingFactory> f;
+			( void )CoCreateInstance( CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS( &f ) );
+			return f;
+			}( );
 
-		const auto pixels{ stbi_load_from_memory( reinterpret_cast< const stbi_uc* >( data.data( ) ), static_cast< int >( data.size( ) ), &width, &height, &channels, STBI_rgb_alpha ) };
-		if ( !pixels ) [[unlikely]]
+		if ( !factory ) [[unlikely]]
 		{
 			return nullptr;
 		}
 
-		if ( out_width != nullptr ) { *out_width = width; }
-		if ( out_height != nullptr ) { *out_height = height; }
+		Microsoft::WRL::ComPtr<IWICStream> stream;
+		auto hr = factory->CreateStream( &stream );
+		if ( FAILED( hr ) ) [[unlikely]]
+		{
+			return nullptr;
+		}
+
+		hr = stream->InitializeFromMemory( reinterpret_cast< BYTE* >( const_cast< std::byte* >( data.data( ) ) ), static_cast< DWORD >( data.size( ) ) );
+		if ( FAILED( hr ) ) [[unlikely]]
+		{
+			return nullptr;
+		}
+
+		Microsoft::WRL::ComPtr<IWICBitmapDecoder> decoder;
+		hr = factory->CreateDecoderFromStream( stream.Get( ), nullptr, WICDecodeMetadataCacheOnDemand, &decoder );
+		if ( FAILED( hr ) ) [[unlikely]]
+		{
+			return nullptr;
+		}
+
+		Microsoft::WRL::ComPtr<IWICBitmapFrameDecode> frame;
+		hr = decoder->GetFrame( 0, &frame );
+		if ( FAILED( hr ) ) [[unlikely]]
+		{
+			return nullptr;
+		}
+
+		UINT width, height;
+		frame->GetSize( &width, &height );
+
+		Microsoft::WRL::ComPtr<IWICFormatConverter> converter;
+		hr = factory->CreateFormatConverter( &converter );
+		if ( FAILED( hr ) ) [[unlikely]]
+		{
+			return nullptr;
+		}
+
+		hr = converter->Initialize( frame.Get( ), GUID_WICPixelFormat32bppRGBA, WICBitmapDitherTypeNone, nullptr, 0.0, WICBitmapPaletteTypeCustom );
+		if ( FAILED( hr ) ) [[unlikely]]
+		{
+			return nullptr;
+		}
+
+		std::vector<BYTE> pixels( width * height * 4 );
+		hr = converter->CopyPixels( nullptr, width * 4, static_cast< UINT >( pixels.size( ) ), pixels.data( ) );
+		if ( FAILED( hr ) ) [[unlikely]]
+		{
+			return nullptr;
+		}
+
+		if ( out_width != nullptr ) { *out_width = static_cast< int >( width ); }
+		if ( out_height != nullptr ) { *out_height = static_cast< int >( height ); }
 
 		D3D11_TEXTURE2D_DESC tex_desc{};
-		tex_desc.Width = static_cast< UINT >( width );
-		tex_desc.Height = static_cast< UINT >( height );
+		tex_desc.Width = width;
+		tex_desc.Height = height;
 		tex_desc.MipLevels = 0;
 		tex_desc.ArraySize = 1;
 		tex_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -1842,33 +1891,23 @@ namespace zdraw {
 		tex_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
 		tex_desc.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
 
-		D3D11_SUBRESOURCE_DATA init_data{};
-		init_data.pSysMem = pixels;
-		init_data.SysMemPitch = static_cast< UINT >( width * 4 );
-		init_data.SysMemSlicePitch = 0;
-
-		Microsoft::WRL::ComPtr<ID3D11Texture2D> texture{};
-		auto hr{ detail::g_render.m_device->CreateTexture2D( &tex_desc, nullptr, &texture ) };
-
-		if ( FAILED( hr ) )
+		Microsoft::WRL::ComPtr<ID3D11Texture2D> texture;
+		hr = detail::g_render.m_device->CreateTexture2D( &tex_desc, nullptr, &texture );
+		if ( FAILED( hr ) ) [[unlikely]]
 		{
-			stbi_image_free( const_cast< stbi_uc* >( pixels ) );
 			return nullptr;
 		}
 
-		detail::g_render.m_context->UpdateSubresource( texture.Get( ), 0, nullptr, pixels, width * 4, 0 );
-
-		stbi_image_free( const_cast< stbi_uc* >( pixels ) );
+		detail::g_render.m_context->UpdateSubresource( texture.Get( ), 0, nullptr, pixels.data( ), width * 4, 0 );
 
 		D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc{};
 		srv_desc.Format = tex_desc.Format;
 		srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 		srv_desc.Texture2D.MipLevels = -1;
 
-		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> texture_srv{};
+		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> texture_srv;
 		hr = detail::g_render.m_device->CreateShaderResourceView( texture.Get( ), &srv_desc, &texture_srv );
-
-		if ( FAILED( hr ) )
+		if ( FAILED( hr ) ) [[unlikely]]
 		{
 			return nullptr;
 		}
@@ -1880,21 +1919,73 @@ namespace zdraw {
 
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> load_icon_from_memory( std::span<const std::byte> data, int* out_width, int* out_height )
 	{
-		auto width{ 0 };
-		auto height{ 0 };
-		auto channels{ 0 };
+		static Microsoft::WRL::ComPtr<IWICImagingFactory> factory = [ ] {
+			( void )CoInitializeEx( nullptr, COINIT_MULTITHREADED );
+			Microsoft::WRL::ComPtr<IWICImagingFactory> f;
+			( void )CoCreateInstance( CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS( &f ) );
+			return f;
+			}( );
 
-		const auto pixels{ stbi_load_from_memory( reinterpret_cast< const stbi_uc* >( data.data( ) ), static_cast< int >( data.size( ) ), &width, &height, &channels, STBI_rgb_alpha ) };
-		if ( !pixels ) [[unlikely]]
+		if ( !factory ) [[unlikely]]
 		{
 			return nullptr;
 		}
 
-		if ( out_width != nullptr ) { *out_width = width; }
-		if ( out_height != nullptr ) { *out_height = height; }
+		Microsoft::WRL::ComPtr<IWICStream> stream;
+		auto hr = factory->CreateStream( &stream );
+		if ( FAILED( hr ) ) [[unlikely]]
+		{
+			return nullptr;
+		}
+
+		hr = stream->InitializeFromMemory( reinterpret_cast< BYTE* >( const_cast< std::byte* >( data.data( ) ) ), static_cast< DWORD >( data.size( ) ) );
+		if ( FAILED( hr ) ) [[unlikely]]
+		{
+			return nullptr;
+		}
+
+		Microsoft::WRL::ComPtr<IWICBitmapDecoder> decoder;
+		hr = factory->CreateDecoderFromStream( stream.Get( ), nullptr, WICDecodeMetadataCacheOnDemand, &decoder );
+		if ( FAILED( hr ) ) [[unlikely]]
+		{
+			return nullptr;
+		}
+
+		Microsoft::WRL::ComPtr<IWICBitmapFrameDecode> frame;
+		hr = decoder->GetFrame( 0, &frame );
+		if ( FAILED( hr ) ) [[unlikely]]
+		{
+			return nullptr;
+		}
+
+		UINT width, height;
+		frame->GetSize( &width, &height );
+
+		Microsoft::WRL::ComPtr<IWICFormatConverter> converter;
+		hr = factory->CreateFormatConverter( &converter );
+		if ( FAILED( hr ) ) [[unlikely]]
+		{
+			return nullptr;
+		}
+
+		hr = converter->Initialize( frame.Get( ), GUID_WICPixelFormat32bppRGBA, WICBitmapDitherTypeNone, nullptr, 0.0, WICBitmapPaletteTypeCustom );
+		if ( FAILED( hr ) ) [[unlikely]]
+		{
+			return nullptr;
+		}
+
+		std::vector<BYTE> pixels( width * height * 4 );
+		hr = converter->CopyPixels( nullptr, width * 4, static_cast< UINT >( pixels.size( ) ), pixels.data( ) );
+		if ( FAILED( hr ) ) [[unlikely]]
+		{
+			return nullptr;
+		}
+
+		if ( out_width != nullptr ) { *out_width = static_cast< int >( width ); }
+		if ( out_height != nullptr ) { *out_height = static_cast< int >( height ); }
 
 		const auto pixel_count{ width * height };
-		for ( int i{ 0 }; i < pixel_count; ++i )
+		for ( UINT i{ 0 }; i < pixel_count; ++i )
 		{
 			const auto idx{ i * 4 };
 			const auto r{ pixels[ idx + 0 ] };
@@ -1913,8 +2004,8 @@ namespace zdraw {
 		}
 
 		D3D11_TEXTURE2D_DESC tex_desc{};
-		tex_desc.Width = static_cast< UINT >( width );
-		tex_desc.Height = static_cast< UINT >( height );
+		tex_desc.Width = width;
+		tex_desc.Height = height;
 		tex_desc.MipLevels = 1;
 		tex_desc.ArraySize = 1;
 		tex_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -1923,15 +2014,12 @@ namespace zdraw {
 		tex_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 
 		D3D11_SUBRESOURCE_DATA init_data{};
-		init_data.pSysMem = pixels;
-		init_data.SysMemPitch = static_cast< UINT >( width * 4 );
+		init_data.pSysMem = pixels.data( );
+		init_data.SysMemPitch = width * 4;
 		init_data.SysMemSlicePitch = 0;
 
-		Microsoft::WRL::ComPtr<ID3D11Texture2D> texture{};
-		auto hr{ detail::g_render.m_device->CreateTexture2D( &tex_desc, &init_data, &texture ) };
-
-		stbi_image_free( const_cast< stbi_uc* >( pixels ) );
-
+		Microsoft::WRL::ComPtr<ID3D11Texture2D> texture;
+		hr = detail::g_render.m_device->CreateTexture2D( &tex_desc, &init_data, &texture );
 		if ( FAILED( hr ) ) [[unlikely]]
 		{
 			return nullptr;
@@ -1942,7 +2030,7 @@ namespace zdraw {
 		srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 		srv_desc.Texture2D.MipLevels = 1;
 
-		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> texture_srv{};
+		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> texture_srv;
 		hr = detail::g_render.m_device->CreateShaderResourceView( texture.Get( ), &srv_desc, &texture_srv );
 
 		return FAILED( hr ) ? nullptr : texture_srv;

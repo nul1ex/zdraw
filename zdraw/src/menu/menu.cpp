@@ -7,7 +7,11 @@ namespace menu {
 		demo_scene.initialize( device, context, 400, 300 );
 		demo_scene.load_model( "demo.glb", true, true );
 		demo_scene.set_orientation( zscene::orientation::none );
-		demo_scene.enable_auto_rotate( true );
+
+		//demo_scene.enable_auto_rotate( true );
+		auto world = demo_scene.get_world_transform( );
+		world = world * DirectX::XMMatrixTranslation( 0.0f, -1.0f, 0.0f );
+		demo_scene.set_world_transform( world );
 
 		demo_scene.set_clear_color( 0.0f, 0.0f, 0.0f, 0.0f );
 		demo_scene.play( );
