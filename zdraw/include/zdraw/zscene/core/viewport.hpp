@@ -1,5 +1,4 @@
-#ifndef VIEWPORT_HPP
-#define VIEWPORT_HPP
+#pragma once
 
 namespace zscene {
 
@@ -27,10 +26,8 @@ namespace zscene {
 		void begin( ID3D11DeviceContext* ctx, float clear_r = 0.1f, float clear_g = 0.1f, float clear_b = 0.1f, float clear_a = 1.0f );
 		void end( ID3D11DeviceContext* ctx );
 
-		[[nodiscard]] ID3D11ShaderResourceView* get_srv( ) const noexcept { return m_srv.Get( ); }
-		[[nodiscard]] float aspect_ratio( ) const noexcept { return m_height > 0 ? static_cast< float >( m_width ) / static_cast< float >( m_height ) : 1.0f; }
+		[[nodiscard]] ID3D11ShaderResourceView* get_srv( ) const noexcept { return this->m_srv.Get( ); }
+		[[nodiscard]] float aspect_ratio( ) const noexcept { return this->m_height > 0 ? static_cast< float >( this->m_width ) / static_cast< float >( this->m_height ) : 1.0f; }
 	};
 
 } // namespace zscene
-
-#endif // !VIEWPORT_HPP

@@ -1,5 +1,4 @@
-#ifndef RENDERER_HPP
-#define RENDERER_HPP
+#pragma once
 
 namespace zscene {
 
@@ -64,5 +63,3 @@ namespace zscene {
 	};
 
 } // namespace zscene
-
-#endif // !RENDERER_HPP

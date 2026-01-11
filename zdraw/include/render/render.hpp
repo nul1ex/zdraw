@@ -1,5 +1,4 @@
-#ifndef RENDER_HPP
-#define RENDER_HPP
+#pragma once
 
 namespace render {
 
@@ -27,5 +26,3 @@ namespace render {
 	} // namespace directx
 
 } // namespace render
-
-#endif // !RENDER_HPP

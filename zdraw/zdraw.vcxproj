@@ -203,24 +203,6 @@
     <ClInclude Include="include\zdraw\zscene\core\renderer.hpp" />
     <ClInclude Include="include\zdraw\zscene\core\viewport.hpp" />
     <ClInclude Include="include\zdraw\zscene\zscene.hpp" />
-    <ClInclude Include="include\zdraw\zui\core\animation.hpp" />
-    <ClInclude Include="include\zdraw\zui\core\color.hpp" />
-    <ClInclude Include="include\zdraw\zui\core\context.hpp" />
-    <ClInclude Include="include\zdraw\zui\core\input.hpp" />
-    <ClInclude Include="include\zdraw\zui\core\layout.hpp" />
-    <ClInclude Include="include\zdraw\zui\core\overlay.hpp" />
-    <ClInclude Include="include\zdraw\zui\core\style.hpp" />
-    <ClInclude Include="include\zdraw\zui\core\types.hpp" />
-    <ClInclude Include="include\zdraw\zui\core\widgets.hpp" />
-    <ClInclude Include="include\zdraw\zui\core\widgets\button.hpp" />
-    <ClInclude Include="include\zdraw\zui\core\widgets\checkbox.hpp" />
-    <ClInclude Include="include\zdraw\zui\core\widgets\color_picker.hpp" />
-    <ClInclude Include="include\zdraw\zui\core\widgets\combo.hpp" />
-    <ClInclude Include="include\zdraw\zui\core\widgets\keybind.hpp" />
-    <ClInclude Include="include\zdraw\zui\core\widgets\multicombo.hpp" />
-    <ClInclude Include="include\zdraw\zui\core\widgets\slider.hpp" />
-    <ClInclude Include="include\zdraw\zui\core\widgets\text.hpp" />
-    <ClInclude Include="include\zdraw\zui\core\widgets\text_input.hpp" />
     <ClInclude Include="include\zdraw\zui\zui.hpp" />
     <ClInclude Include="include\render\render.hpp" />
   </ItemGroup>
@@ -234,6 +216,7 @@
     <ClCompile Include="src\zdraw\zscene\core\renderer.cpp" />
     <ClCompile Include="src\zdraw\zscene\core\viewport.cpp" />
     <ClCompile Include="src\zdraw\zscene\zscene.cpp" />
+    <ClCompile Include="src\zdraw\zui\zui.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Library Include="include\zdraw\external\freetype\freetype.lib" />

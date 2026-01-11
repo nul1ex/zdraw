@@ -1,5 +1,4 @@
-#ifndef ZSCENE_HPP
-#define ZSCENE_HPP
+#pragma once
 
 #include "core/viewport.hpp"
 #include "core/model.hpp"
@@ -107,5 +106,3 @@ namespace zscene {
 	};
 
 } // namespace zscene
-
-#endif // !ZSCENE_HPP

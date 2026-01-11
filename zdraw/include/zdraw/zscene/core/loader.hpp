@@ -1,5 +1,4 @@
-#ifndef LOADER_HPP
-#define LOADER_HPP
+#pragma once
 
 namespace zscene {
 
@@ -7,5 +6,3 @@ namespace zscene {
 	[[nodiscard]] bool load_gltf_from_memory( const void* data, std::size_t size, model& out_model, const std::string& base_path = "" );
 
 } // namespace zscene
-
-#endif // !LOADER_HPP

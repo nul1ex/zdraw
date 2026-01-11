@@ -1,5 +1,4 @@
-#ifndef ZDRAW_HPP
-#define ZDRAW_HPP
+#pragma once 
 
 #define NOMINMAX
 
@@ -343,5 +342,3 @@ namespace zdraw {
 	[[nodiscard]] std::pair<float, float> measure_text( std::string_view text, const font* fnt = nullptr );
 
 } // namespace zdraw
-
-#endif // ZDRAW_HPP

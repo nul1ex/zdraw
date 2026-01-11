@@ -101,15 +101,7 @@ namespace render {
 
 	long long __stdcall window::procedure( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam )
 	{
-		switch ( msg )
-		{
-		case WM_DESTROY:
-		{
-			PostQuitMessage( 0 );
-			return 0;
-		}
-		}
-
+		zui::process_wndproc_message( msg, wparam, lparam );
 		return DefWindowProcW( hwnd, msg, wparam, lparam );
 	}
 

@@ -27,8 +27,7 @@ namespace zscene {
 				return nullptr;
 			}
 
-			const auto full_path = base_path.empty( ) ? uri : base_path + "/" + uri;
-			return zdraw::load_texture_from_file( full_path );
+			return zdraw::load_texture_from_file( base_path.empty( ) ? uri : base_path + "/" + uri );
 		}
 		else if ( image->buffer_view )
 		{
@@ -67,9 +66,24 @@ namespace zscene {
 				mat.base_color.z = pbr.base_color_factor[ 2 ];
 				mat.base_color.w = pbr.base_color_factor[ 3 ];
 
-				if ( pbr.base_color_texture.texture && pbr.base_color_texture.texture->image )
+				if ( pbr.base_color_texture.texture )
 				{
-					mat.albedo_texture = load_texture_from_gltf_image( pbr.base_color_texture.texture->image, base_path );
+					auto img = pbr.base_color_texture.texture->image;
+					if ( !img )
+					{
+						auto tex = pbr.base_color_texture.texture;
+						auto tex_index = tex - data->textures;
+
+						if ( tex_index < data->images_count )
+						{
+							img = &data->images[ tex_index ];
+						}
+					}
+
+					if ( img )
+					{
+						mat.albedo_texture = load_texture_from_gltf_image( img, base_path );
+					}
 				}
 			}
 		}

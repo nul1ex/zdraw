@@ -1,5 +1,4 @@
-#ifndef MENU_HPP
-#define MENU_HPP
+#pragma once
 
 #include "resources/background.hpp"
 
@@ -12,5 +11,3 @@ namespace menu {
 	void draw( );
 
 } // namespace menu
-
-#endif // !MENU_HPP

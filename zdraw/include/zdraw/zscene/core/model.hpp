@@ -1,5 +1,4 @@
-#ifndef MODEL_HPP
-#define MODEL_HPP
+#pragma once
 
 namespace zscene {
 
@@ -116,5 +115,3 @@ namespace zscene {
 	};
 
 } // namespace zscene
-
-#endif // !MODEL_HPP

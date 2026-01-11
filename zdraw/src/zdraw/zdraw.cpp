@@ -578,6 +578,17 @@ namespace zdraw {
 		r.top = static_cast< LONG >( std::floor( y0 ) );
 		r.right = static_cast< LONG >( std::ceil( x1 ) );
 		r.bottom = static_cast< LONG >( std::ceil( y1 ) );
+
+		// Intersect with parent clip rect if one exists
+		if ( !this->m_clip_stack.empty( ) )
+		{
+			const auto& parent = this->m_clip_stack.back( );
+			r.left = std::max( r.left, parent.left );
+			r.top = std::max( r.top, parent.top );
+			r.right = std::min( r.right, parent.right );
+			r.bottom = std::min( r.bottom, parent.bottom );
+		}
+
 		this->m_clip_stack.push_back( r );
 	}
 
@@ -1671,6 +1682,7 @@ namespace zdraw {
 
 		const auto delta_ticks{ current_time.QuadPart - d.m_last_frame_time.QuadPart };
 		d.m_delta_time = static_cast< float >( delta_ticks ) / static_cast< float >( d.m_performance_frequency.QuadPart );
+		d.m_delta_time = std::min( d.m_delta_time, 0.1f ); // Clamp to 100ms max to prevent startup spikes
 		d.m_last_frame_time = current_time;
 
 		if ( d.m_delta_time > 0.0f )

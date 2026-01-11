@@ -1,5 +1,4 @@
-#ifndef SHADERS_HPP
-#define SHADERS_HPP
+#pragma once
 
 namespace shaders {
 
@@ -153,5 +152,3 @@ namespace shaders {
     )";
 
 } // namespace shaders
-
-#endif // SHADERS_HPP

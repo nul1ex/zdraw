@@ -22,6 +22,7 @@
 #include <fstream>
 #include <numbers>
 #include <filesystem>
+#include <optional>
 
 // directx
 #include <d3d11.h>

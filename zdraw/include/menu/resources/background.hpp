@@ -1,5 +1,4 @@
-#ifndef BACKGROUND_HPP
-#define BACKGROUND_HPP
+#pragma once
 
 namespace resources {
 
@@ -17116,5 +17115,3 @@ namespace resources {
 	};
 
 } // namespace resources
-
-#endif // !BACKGROUND_HPP

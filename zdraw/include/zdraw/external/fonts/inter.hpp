@@ -1,5 +1,4 @@
-#ifndef INTER_HPP
-#define INTER_HPP
+#pragma once
 
 namespace fonts {
 
@@ -28660,5 +28659,3 @@ namespace fonts {
 	};
 
 } // namespace fonts
-
-#endif // !INTER_HPP
