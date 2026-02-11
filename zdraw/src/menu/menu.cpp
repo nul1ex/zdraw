@@ -4,8 +4,18 @@ namespace menu {
 
 	void initialize( ID3D11Device* device, ID3D11DeviceContext* context )
 	{
-		demo_scene.initialize( device, context, 400, 300 );
-		demo_scene.load_model( "demo.glb", true, true );
+		if ( !demo_scene.initialize( device, context, 400, 300 ) )
+		{
+			should_demo_play = false;
+			return;
+		}
+
+		if ( !demo_scene.load_model( "demo.glb", true, true ) )
+		{
+			should_demo_play = false;
+			return;
+		}
+
 		demo_scene.set_orientation( zscene::orientation::z_up );
 		demo_scene.enable_auto_rotate( true );
 
@@ -15,8 +25,11 @@ namespace menu {
 
 	void update( )
 	{
-		demo_scene.update( zdraw::get_delta_time( ) );
-		demo_scene.render( );
+		if ( should_demo_play )
+		{
+			demo_scene.update( zdraw::get_delta_time( ) );
+			demo_scene.render( );
+		}
 	}
 
 	void draw( )
@@ -31,6 +44,7 @@ namespace menu {
 			}
 		}
 
+		if ( should_demo_play )
 		{
 			static auto win_x = 50.0f, win_y = 50.0f;
 			static auto win_w = 500.0f, win_h = 500.0f;

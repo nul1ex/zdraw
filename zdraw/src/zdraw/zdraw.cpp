@@ -579,7 +579,6 @@ namespace zdraw {
 		r.right = static_cast< LONG >( std::ceil( x1 ) );
 		r.bottom = static_cast< LONG >( std::ceil( y1 ) );
 
-		// Intersect with parent clip rect if one exists
 		if ( !this->m_clip_stack.empty( ) )
 		{
 			const auto& parent = this->m_clip_stack.back( );
@@ -1283,7 +1282,7 @@ namespace zdraw {
 			const auto next_outer = vtx_base + 2 + static_cast< std::uint32_t >( next * 2 );
 
 			const auto base_idx = i * 9;
-			idx[ base_idx + 0 ] = vtx_base; 
+			idx[ base_idx + 0 ] = vtx_base;
 			idx[ base_idx + 1 ] = curr_inner;
 			idx[ base_idx + 2 ] = next_inner;
 			idx[ base_idx + 3 ] = curr_inner;
@@ -1682,7 +1681,7 @@ namespace zdraw {
 
 		const auto delta_ticks{ current_time.QuadPart - d.m_last_frame_time.QuadPart };
 		d.m_delta_time = static_cast< float >( delta_ticks ) / static_cast< float >( d.m_performance_frequency.QuadPart );
-		d.m_delta_time = std::min( d.m_delta_time, 0.1f ); // Clamp to 100ms max to prevent startup spikes
+		d.m_delta_time = std::min( d.m_delta_time, 0.1f );
 		d.m_last_frame_time = current_time;
 
 		if ( d.m_delta_time > 0.0f )
@@ -1819,7 +1818,7 @@ namespace zdraw {
 					return { static_cast< int >( std::lround( viewport.Width ) ), static_cast< int >( std::lround( viewport.Height ) ) };
 				}
 
-				return { GetSystemMetrics( SM_CXSCREEN ), GetSystemMetrics( SM_CYSCREEN ) };
+				return { 0, 0 };
 			}( );
 
 		return cached_size;
@@ -1827,11 +1826,12 @@ namespace zdraw {
 
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> load_texture_from_memory( std::span<const std::byte> data, int* out_width, int* out_height )
 	{
-		static Microsoft::WRL::ComPtr<IWICImagingFactory> factory = [ ] {
-			( void )CoInitializeEx( nullptr, COINIT_MULTITHREADED );
-			Microsoft::WRL::ComPtr<IWICImagingFactory> f;
-			( void )CoCreateInstance( CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS( &f ) );
-			return f;
+		static Microsoft::WRL::ComPtr<IWICImagingFactory> factory = [ ]
+			{
+				( void )CoInitializeEx( nullptr, COINIT_MULTITHREADED );
+				Microsoft::WRL::ComPtr<IWICImagingFactory> f;
+				( void )CoCreateInstance( CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS( &f ) );
+				return f;
 			}( );
 
 		if ( !factory ) [[unlikely]]
@@ -1931,11 +1931,12 @@ namespace zdraw {
 
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> load_icon_from_memory( std::span<const std::byte> data, int* out_width, int* out_height )
 	{
-		static Microsoft::WRL::ComPtr<IWICImagingFactory> factory = [ ] {
-			( void )CoInitializeEx( nullptr, COINIT_MULTITHREADED );
-			Microsoft::WRL::ComPtr<IWICImagingFactory> f;
-			( void )CoCreateInstance( CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS( &f ) );
-			return f;
+		static Microsoft::WRL::ComPtr<IWICImagingFactory> factory = [ ]
+			{
+				( void )CoInitializeEx( nullptr, COINIT_MULTITHREADED );
+				Microsoft::WRL::ComPtr<IWICImagingFactory> f;
+				( void )CoCreateInstance( CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS( &f ) );
+				return f;
 			}( );
 
 		if ( !factory ) [[unlikely]]
@@ -2000,19 +2001,19 @@ namespace zdraw {
 		for ( UINT i{ 0 }; i < pixel_count; ++i )
 		{
 			const auto idx{ i * 4 };
-			const auto r{ pixels[ idx + 0 ] };
-			const auto g{ pixels[ idx + 1 ] };
-			const auto b{ pixels[ idx + 2 ] };
-			const auto a{ pixels[ idx + 3 ] };
+			const auto r{ pixels[ static_cast<std::size_t>( idx ) + 0 ] };
+			const auto g{ pixels[ static_cast< std::size_t >( idx ) + 1 ] };
+			const auto b{ pixels[ static_cast< std::size_t >( idx ) + 2 ] };
+			const auto a{ pixels[ static_cast< std::size_t >( idx ) + 3 ] };
 
 			const auto luminance{ static_cast< std::uint8_t >( ( r * 0.299f + g * 0.587f + b * 0.114f ) ) };
 			const auto computed_alpha{ static_cast< std::uint8_t >( 255 - luminance ) };
 			const auto final_alpha{ a < 250 ? a : computed_alpha };
 
-			pixels[ idx + 0 ] = 255;
-			pixels[ idx + 1 ] = 255;
-			pixels[ idx + 2 ] = 255;
-			pixels[ idx + 3 ] = final_alpha;
+			pixels[ static_cast< std::size_t >( idx ) + 0 ] = 255;
+			pixels[ static_cast< std::size_t >( idx ) + 1 ] = 255;
+			pixels[ static_cast< std::size_t >( idx ) + 2 ] = 255;
+			pixels[ static_cast< std::size_t >( idx ) + 3 ] = final_alpha;
 		}
 
 		D3D11_TEXTURE2D_DESC tex_desc{};
