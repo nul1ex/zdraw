@@ -15,7 +15,7 @@
   - multi-color gradients and styled text
 
   ### zui (immediate mode gui)
-  - widgets: button, checkbox, slider, keybind, combo box, multi-select combo, color picker, text input
+  - widgets: button, checkbox, slider, keybind, combo box, multi combo box, color picker, text input
   - window management with drag/resize/autosize support
   - nested windows and group boxes
   - styling system with color presets
@@ -23,7 +23,7 @@
 
   ### zscene (3d scene viewer)
   - gltf/glb model loading
-  - skeletal animation playback with controls
+  - skeletal animation playback
   - perspective camera with auto-positioning
   - auto-fit and auto-orient models
   - auto-rotate turntable mode
@@ -33,5 +33,5 @@
   ## dependencies
   - directx11
   - freetype
-  - stb (image loading)
+  - wincodec (image loading)
   - cgltf (model loading)
