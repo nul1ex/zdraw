@@ -1,4 +1,6 @@
-#include <include/global.hpp>
+#include <global.hpp>
+
+#include "resources/background.hpp"
 
 namespace menu {
 
@@ -40,7 +42,7 @@ namespace menu {
 			static auto background = zdraw::load_texture_from_memory( { std::span( reinterpret_cast< const std::byte* >( resources::background ), sizeof( resources::background ) ) } );
 			if ( background )
 			{
-				zdraw::rect_textured( 0, 0, 1280, 720, background.Get( ) );
+				zdraw::get_draw_list( ).add_rect_textured( 0, 0, 1280, 720, background.Get( ) );
 			}
 		}
 
@@ -62,7 +64,7 @@ namespace menu {
 					auto* win = zui::detail::get_current_window( );
 					auto& bounds = win->bounds;
 
-					zdraw::rect_textured( bounds.x, bounds.y, bounds.w, bounds.h, demo_scene.get_texture( ) );
+					zdraw::get_draw_list( ).add_rect_textured( bounds.x, bounds.y, bounds.w, bounds.h, demo_scene.get_texture( ) );
 					demo_scene.resize_viewport( static_cast< int >( bounds.w ), static_cast< int >( bounds.h ) );
 
 					zui::end_nested_window( );

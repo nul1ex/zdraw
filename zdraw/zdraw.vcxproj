@@ -1,18 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
-    <ProjectConfiguration Include="Debug|Win32">
-      <Configuration>Debug</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Release|Win32">
-      <Configuration>Release</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Debug|x64">
-      <Configuration>Debug</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Release|x64">
       <Configuration>Release</Configuration>
       <Platform>x64</Platform>
@@ -26,25 +14,6 @@
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
-    <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
-    <CharacterSet>Unicode</CharacterSet>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
-    <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>Unicode</CharacterSet>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
-    <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
-    <CharacterSet>Unicode</CharacterSet>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
@@ -57,15 +26,6 @@
   </ImportGroup>
   <ImportGroup Label="Shared">
   </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-  </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-  </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-  </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
@@ -73,49 +33,8 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>../bin/</OutDir>
     <IntDir>../bin/intermediates/</IntDir>
-    <IncludePath>../zdraw/;../zdraw/include/zdraw/external/freetype/;$(IncludePath)</IncludePath>
+    <IncludePath>../zdraw/demo/;../zdraw/zdraw/external/freetype/;$(IncludePath)</IncludePath>
   </PropertyGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
-      <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp20</LanguageStandard>
-    </ClCompile>
-    <Link>
-      <SubSystem>Console</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-    </Link>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
-      <FunctionLevelLinking>true</FunctionLevelLinking>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
-      <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp20</LanguageStandard>
-    </ClCompile>
-    <Link>
-      <SubSystem>Console</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-    </Link>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
-      <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp20</LanguageStandard>
-    </ClCompile>
-    <Link>
-      <SubSystem>Console</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-    </Link>
-  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
@@ -126,100 +45,95 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <OmitFramePointers>true</OmitFramePointers>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EntryPointSymbol>
       </EntryPointSymbol>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="include\global.hpp" />
-    <ClInclude Include="include\menu\menu.hpp" />
-    <ClInclude Include="include\menu\resources\background.hpp" />
-    <ClInclude Include="include\zdraw\external\cgltf\cgltf.h" />
-    <ClInclude Include="include\zdraw\external\fonts\inter.hpp" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\config\ftconfig.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\config\ftheader.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\config\ftmodule.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\config\ftoption.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\config\ftstdlib.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\config\integer-types.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\config\mac-support.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\config\public-macros.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\freetype.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftadvanc.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftbbox.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftbdf.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftbitmap.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftbzip2.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftcache.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftchapters.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftcid.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftcolor.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftdriver.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\fterrdef.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\fterrors.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftfntfmt.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftgasp.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftglyph.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftgxval.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftgzip.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftimage.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftincrem.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftlcdfil.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftlist.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftlogging.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftlzw.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftmac.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftmm.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftmodapi.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftmoderr.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftotval.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftoutln.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftparams.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftpfr.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftrender.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftsizes.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftsnames.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftstroke.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftsynth.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftsystem.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\fttrigon.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\fttypes.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ftwinfnt.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\otsvg.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\t1tables.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\ttnameid.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\tttables.h" />
-    <ClInclude Include="include\zdraw\external\freetype\freetype\tttags.h" />
-    <ClInclude Include="include\zdraw\external\freetype\ft2build.h" />
-    <ClInclude Include="include\zdraw\external\shaders\shaders.hpp" />
-    <ClInclude Include="include\zdraw\external\unordered_dense.hpp" />
-    <ClInclude Include="include\zdraw\zdraw.hpp" />
-    <ClInclude Include="include\zdraw\zscene\core\loader.hpp" />
-    <ClInclude Include="include\zdraw\zscene\core\model.hpp" />
-    <ClInclude Include="include\zdraw\zscene\core\renderer.hpp" />
-    <ClInclude Include="include\zdraw\zscene\core\viewport.hpp" />
-    <ClInclude Include="include\zdraw\zscene\zscene.hpp" />
-    <ClInclude Include="include\zdraw\zui\zui.hpp" />
-    <ClInclude Include="include\render\render.hpp" />
+    <ClInclude Include="demo\global.hpp" />
+    <ClInclude Include="demo\menu\menu.hpp" />
+    <ClInclude Include="demo\menu\resources\background.hpp" />
+    <ClInclude Include="demo\render\render.hpp" />
+    <ClInclude Include="zdraw\external\cgltf\cgltf.h" />
+    <ClInclude Include="zdraw\external\fonts\inter.hpp" />
+    <ClInclude Include="zdraw\external\freetype\freetype\config\ftconfig.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\config\ftheader.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\config\ftmodule.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\config\ftoption.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\config\ftstdlib.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\config\integer-types.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\config\mac-support.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\config\public-macros.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\freetype.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftadvanc.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftbbox.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftbdf.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftbitmap.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftbzip2.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftcache.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftchapters.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftcid.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftcolor.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftdriver.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\fterrdef.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\fterrors.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftfntfmt.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftgasp.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftglyph.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftgxval.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftgzip.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftimage.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftincrem.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftlcdfil.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftlist.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftlogging.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftlzw.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftmac.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftmm.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftmodapi.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftmoderr.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftotval.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftoutln.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftparams.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftpfr.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftrender.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftsizes.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftsnames.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftstroke.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftsynth.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftsystem.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\fttrigon.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\fttypes.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ftwinfnt.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\otsvg.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\t1tables.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\ttnameid.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\tttables.h" />
+    <ClInclude Include="zdraw\external\freetype\freetype\tttags.h" />
+    <ClInclude Include="zdraw\external\freetype\ft2build.h" />
+    <ClInclude Include="zdraw\external\shaders\shaders.hpp" />
+    <ClInclude Include="zdraw\external\unordered_dense.hpp" />
+    <ClInclude Include="zdraw\zdraw.hpp" />
+    <ClInclude Include="zdraw\zscene\zscene.hpp" />
+    <ClInclude Include="zdraw\zui\zui.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\entry.cpp" />
-    <ClCompile Include="src\menu\menu.cpp" />
-    <ClCompile Include="src\render\render.cpp" />
-    <ClCompile Include="src\zdraw\zdraw.cpp" />
-    <ClCompile Include="src\zdraw\zscene\core\loader.cpp" />
-    <ClCompile Include="src\zdraw\zscene\core\model.cpp" />
-    <ClCompile Include="src\zdraw\zscene\core\renderer.cpp" />
-    <ClCompile Include="src\zdraw\zscene\core\viewport.cpp" />
-    <ClCompile Include="src\zdraw\zscene\zscene.cpp" />
-    <ClCompile Include="src\zdraw\zui\zui.cpp" />
+    <ClCompile Include="demo\entry.cpp" />
+    <ClCompile Include="demo\menu\menu.cpp" />
+    <ClCompile Include="demo\render\render.cpp" />
+    <ClCompile Include="zdraw\zdraw.cpp" />
+    <ClCompile Include="zdraw\zscene\zscene.cpp" />
+    <ClCompile Include="zdraw\zui\zui.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <Library Include="include\zdraw\external\freetype\freetype.lib" />
+    <Library Include="zdraw\external\freetype\freetype.lib" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

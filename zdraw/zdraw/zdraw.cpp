@@ -1,10 +1,16 @@
-#include <include/global.hpp>
+#include "zdraw.hpp"
+
+#include <d3dcompiler.h>
+#include <wincodec.h>
+#include <algorithm>
+#include <fstream>
+#include <numbers>
 
 #include <ft2build.h>
 #include <freetype/freetype.h>
 
-#include <include/zdraw/external/fonts/inter.hpp>
-#include <include/zdraw/external/shaders/shaders.hpp>
+#include "external/fonts/inter.hpp"
+#include "external/shaders/shaders.hpp"
 
 namespace zdraw {
 
@@ -169,7 +175,7 @@ namespace zdraw {
 			static constexpr std::uint32_t k_initial_vertex_capacity{ 65536u * static_cast< std::uint32_t >( sizeof( vertex ) ) };
 			static constexpr std::uint32_t k_initial_index_capacity{ 131072u * static_cast< std::uint32_t >( sizeof( std::uint32_t ) ) };
 
-			draw_list m_current_draw_list{};
+			draw_list m_draw_lists[ 3 ]{};
 			render_state_cache m_state_cache{};
 
 			std::vector<std::unique_ptr<font>> m_fonts{};
@@ -471,10 +477,8 @@ namespace zdraw {
 			return g_render.m_fonts.back( ).get( );
 		}
 
-		static void ensure_buffer_capacity( )
+		static void ensure_buffer_capacity( draw_list& dl )
 		{
-			auto& dl{ g_render.m_current_draw_list };
-
 			const std::uint32_t required_vertex_bytes{ static_cast< std::uint32_t >( dl.m_vertices.size( ) ) * static_cast< std::uint32_t >( sizeof( vertex ) ) };
 			const std::uint32_t required_index_bytes{ static_cast< std::uint32_t >( dl.m_indices.size( ) ) * static_cast< std::uint32_t >( sizeof( std::uint32_t ) ) };
 
@@ -498,7 +502,7 @@ namespace zdraw {
 			D3D11_MAPPED_SUBRESOURCE mapped{};
 			if ( SUCCEEDED( g_render.m_context->Map( g_render.m_constant_buffer.Get( ), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped ) ) )
 			{
-				auto* cb{ static_cast< constant_buffer_data* >( mapped.pData ) };
+				auto cb{ static_cast< constant_buffer_data* >( mapped.pData ) };
 
 				const auto L{ 0.0f };
 				const auto R{ width };
@@ -507,7 +511,7 @@ namespace zdraw {
 
 				const float ortho_projection[ 4 ][ 4 ]
 				{
-					{ 2.0f / ( R - L ),  0.0f, 0.0f, 0.0f },
+					{ 2.0f / ( R - L ), 0.0f, 0.0f, 0.0f },
 					{ 0.0f, 2.0f / ( T - B ), 0.0f, 0.0f },
 					{ 0.0f, 0.0f, 0.5f, 0.0f },
 					{ ( R + L ) / ( L - R ), ( T + B ) / ( B - T ), 0.5f, 1.0f },
@@ -1206,16 +1210,87 @@ namespace zdraw {
 
 		const auto vtx_base{ static_cast< std::uint32_t >( this->m_vertices.size( ) ) };
 
-		this->push_vertex( x0, y0, 0.0f, 0.0f, color );
-		this->push_vertex( x1, y1, 0.0f, 0.0f, color );
-		this->push_vertex( x2, y2, 0.0f, 0.0f, color );
+		constexpr auto aa_fringe{ 1.0f };
+		constexpr auto aa_half{ aa_fringe * 0.5f };
 
-		auto idx{ this->m_indices.allocate( 3 ) };
-		idx[ 0 ] = vtx_base;
-		idx[ 1 ] = vtx_base + 1;
-		idx[ 2 ] = vtx_base + 2;
+		auto transparent{ color };
+		transparent.a = 0;
 
-		this->m_commands.data( )[ this->m_commands.size( ) - 1 ].m_idx_count += 3u;
+		const float vx[ 3 ]{ x0, x1, x2 };
+		const float vy[ 3 ]{ y0, y1, y2 };
+
+		const auto cx{ ( x0 + x1 + x2 ) / 3.0f };
+		const auto cy{ ( y0 + y1 + y2 ) / 3.0f };
+
+		float nx[ 3 ]{}, ny[ 3 ]{};
+
+		for ( int i{ 0 }; i < 3; ++i )
+		{
+			const auto j{ ( i + 1 ) % 3 };
+			const auto ex{ vx[ j ] - vx[ i ] };
+			const auto ey{ vy[ j ] - vy[ i ] };
+			const auto len{ std::sqrt( ex * ex + ey * ey ) };
+
+			if ( len < 0.0001f )
+			{
+				continue;
+			}
+
+			nx[ i ] = -ey / len;
+			ny[ i ] = ex / len;
+
+			const auto mid_dx{ ( vx[ i ] + vx[ j ] ) * 0.5f - cx };
+			const auto mid_dy{ ( vy[ i ] + vy[ j ] ) * 0.5f - cy };
+
+			if ( nx[ i ] * mid_dx + ny[ i ] * mid_dy < 0.0f )
+			{
+				nx[ i ] = -nx[ i ];
+				ny[ i ] = -ny[ i ];
+			}
+		}
+
+		float off_x[ 3 ]{}, off_y[ 3 ]{};
+		for ( int i{ 0 }; i < 3; ++i )
+		{
+			const auto prev{ ( i + 2 ) % 3 };
+			auto mx{ nx[ prev ] + nx[ i ] };
+			auto my{ ny[ prev ] + ny[ i ] };
+			const auto ml{ std::sqrt( mx * mx + my * my ) };
+
+			if ( ml > 0.0001f )
+			{
+				mx /= ml;
+				my /= ml;
+			}
+
+			const auto d{ mx * nx[ prev ] + my * ny[ prev ] };
+			const auto s{ d > 0.1f ? aa_half / d : aa_half * 2.0f };
+
+			off_x[ i ] = mx * s;
+			off_y[ i ] = my * s;
+		}
+
+		for ( int i{ 0 }; i < 3; ++i )
+		{
+			this->push_vertex( vx[ i ] - off_x[ i ], vy[ i ] - off_y[ i ], 0.0f, 0.0f, color );
+		}
+
+		for ( int i{ 0 }; i < 3; ++i )
+		{
+			this->push_vertex( vx[ i ] + off_x[ i ], vy[ i ] + off_y[ i ], 0.0f, 0.0f, transparent );
+		}
+
+		auto idx{ this->m_indices.allocate( 21 ) };
+
+		idx[ 0 ] = vtx_base + 0; idx[ 1 ] = vtx_base + 1; idx[ 2 ] = vtx_base + 2;
+		idx[ 3 ] = vtx_base + 0; idx[ 4 ] = vtx_base + 3; idx[ 5 ] = vtx_base + 4;
+		idx[ 6 ] = vtx_base + 0; idx[ 7 ] = vtx_base + 4; idx[ 8 ] = vtx_base + 1;
+		idx[ 9 ] = vtx_base + 1; idx[ 10 ] = vtx_base + 4; idx[ 11 ] = vtx_base + 5;
+		idx[ 12 ] = vtx_base + 1; idx[ 13 ] = vtx_base + 5; idx[ 14 ] = vtx_base + 2;
+		idx[ 15 ] = vtx_base + 2; idx[ 16 ] = vtx_base + 5; idx[ 17 ] = vtx_base + 3;
+		idx[ 18 ] = vtx_base + 2; idx[ 19 ] = vtx_base + 3; idx[ 20 ] = vtx_base + 0;
+
+		this->m_commands.data( )[ this->m_commands.size( ) - 1 ].m_idx_count += 21u;
 	}
 
 	void draw_list::add_triangle_filled_multi_color( float x0, float y0, float x1, float y1, float x2, float y2, rgba color0, rgba color1, rgba color2 )
@@ -1224,16 +1299,91 @@ namespace zdraw {
 
 		const auto vtx_base{ static_cast< std::uint32_t >( this->m_vertices.size( ) ) };
 
-		this->push_vertex( x0, y0, 0.0f, 0.0f, color0 );
-		this->push_vertex( x1, y1, 0.0f, 0.0f, color1 );
-		this->push_vertex( x2, y2, 0.0f, 0.0f, color2 );
+		constexpr auto aa_fringe{ 1.0f };
+		constexpr auto aa_half{ aa_fringe * 0.5f };
 
-		auto idx{ this->m_indices.allocate( 3 ) };
-		idx[ 0 ] = vtx_base;
-		idx[ 1 ] = vtx_base + 1;
-		idx[ 2 ] = vtx_base + 2;
+		const rgba colors[ 3 ]{ color0, color1, color2 };
+		rgba transparent[ 3 ]{ color0, color1, color2 };
+		transparent[ 0 ].a = 0;
+		transparent[ 1 ].a = 0;
+		transparent[ 2 ].a = 0;
 
-		this->m_commands.data( )[ this->m_commands.size( ) - 1 ].m_idx_count += 3u;
+		const float vx[ 3 ]{ x0, x1, x2 };
+		const float vy[ 3 ]{ y0, y1, y2 };
+
+		const auto cx{ ( x0 + x1 + x2 ) / 3.0f };
+		const auto cy{ ( y0 + y1 + y2 ) / 3.0f };
+
+		float nx[ 3 ]{}, ny[ 3 ]{};
+
+		for ( int i{ 0 }; i < 3; ++i )
+		{
+			const auto j{ ( i + 1 ) % 3 };
+			const auto ex{ vx[ j ] - vx[ i ] };
+			const auto ey{ vy[ j ] - vy[ i ] };
+			const auto len{ std::sqrt( ex * ex + ey * ey ) };
+
+			if ( len < 0.0001f )
+			{
+				continue;
+			}
+
+			nx[ i ] = -ey / len;
+			ny[ i ] = ex / len;
+
+			const auto mid_dx{ ( vx[ i ] + vx[ j ] ) * 0.5f - cx };
+			const auto mid_dy{ ( vy[ i ] + vy[ j ] ) * 0.5f - cy };
+
+			if ( nx[ i ] * mid_dx + ny[ i ] * mid_dy < 0.0f )
+			{
+				nx[ i ] = -nx[ i ];
+				ny[ i ] = -ny[ i ];
+			}
+		}
+
+		float off_x[ 3 ]{}, off_y[ 3 ]{};
+
+		for ( int i{ 0 }; i < 3; ++i )
+		{
+			const auto prev{ ( i + 2 ) % 3 };
+			auto mx{ nx[ prev ] + nx[ i ] };
+			auto my{ ny[ prev ] + ny[ i ] };
+			const auto ml{ std::sqrt( mx * mx + my * my ) };
+
+			if ( ml > 0.0001f )
+			{
+				mx /= ml;
+				my /= ml;
+			}
+
+			const auto d{ mx * nx[ prev ] + my * ny[ prev ] };
+			const auto s{ d > 0.1f ? aa_half / d : aa_half * 2.0f };
+
+			off_x[ i ] = mx * s;
+			off_y[ i ] = my * s;
+		}
+
+		for ( int i{ 0 }; i < 3; ++i )
+		{
+			this->push_vertex( vx[ i ] - off_x[ i ], vy[ i ] - off_y[ i ], 0.0f, 0.0f, colors[ i ] );
+		}
+
+		for ( int i{ 0 }; i < 3; ++i )
+		{
+			this->push_vertex( vx[ i ] + off_x[ i ], vy[ i ] + off_y[ i ], 0.0f, 0.0f, transparent[ i ] );
+		}
+
+		auto idx{ this->m_indices.allocate( 21 ) };
+
+		idx[ 0 ] = vtx_base + 0; idx[ 1 ] = vtx_base + 1; idx[ 2 ] = vtx_base + 2;
+		idx[ 3 ] = vtx_base + 0; idx[ 4 ] = vtx_base + 3; idx[ 5 ] = vtx_base + 4;
+		idx[ 6 ] = vtx_base + 0; idx[ 7 ] = vtx_base + 4; idx[ 8 ] = vtx_base + 1;
+		idx[ 9 ] = vtx_base + 1; idx[ 10 ] = vtx_base + 4; idx[ 11 ] = vtx_base + 5;
+		idx[ 12 ] = vtx_base + 1; idx[ 13 ] = vtx_base + 5; idx[ 14 ] = vtx_base + 2;
+		idx[ 15 ] = vtx_base + 2; idx[ 16 ] = vtx_base + 5; idx[ 17 ] = vtx_base + 3;
+		idx[ 18 ] = vtx_base + 2; idx[ 19 ] = vtx_base + 3; idx[ 20 ] = vtx_base + 0;
+
+		this->m_commands.data( )[ this->m_commands.size( ) - 1 ].m_idx_count += 21u;
 	}
 
 	void draw_list::add_circle( float x, float y, float radius, rgba color, int segments, float thickness )
@@ -1334,28 +1484,48 @@ namespace zdraw {
 		const auto angle_range{ end_angle - start_angle };
 		const auto angle_increment{ angle_range / static_cast< float >( segments ) };
 
+		constexpr auto aa_fringe{ 1.0f };
+		const auto inner_radius = radius - aa_fringe * 0.5f;
+		const auto outer_radius = radius + aa_fringe * 0.5f;
+
+		auto transparent = color;
+		transparent.a = 0;
+
 		this->push_vertex( x, y, 0.5f, 0.5f, color );
 
 		for ( int i{ 0 }; i <= segments; ++i )
 		{
 			const auto angle{ start_angle + angle_increment * static_cast< float >( i ) };
-			const auto px{ x + std::cos( angle ) * radius };
-			const auto py{ y + std::sin( angle ) * radius };
-			this->push_vertex( px, py, 0.5f, 0.5f, color );
+			const auto cos_a = std::cos( angle );
+			const auto sin_a = std::sin( angle );
+
+			this->push_vertex( x + cos_a * inner_radius, y + sin_a * inner_radius, 0.5f, 0.5f, color );
+			this->push_vertex( x + cos_a * outer_radius, y + sin_a * outer_radius, 0.5f, 0.5f, transparent );
 		}
 
-		const auto idx_count{ static_cast< std::size_t >( segments ) * 3u };
-		auto idx_data{ this->m_indices.allocate( idx_count ) };
+		const auto tri_count = segments * 3;
+		auto idx_data = this->m_indices.allocate( static_cast< std::size_t >( tri_count ) * 3u );
 
 		for ( int i{ 0 }; i < segments; ++i )
 		{
-			const auto base_idx{ i * 3 };
+			const auto curr_inner = vtx_base + 1 + static_cast< std::uint32_t >( i * 2 );
+			const auto curr_outer = vtx_base + 2 + static_cast< std::uint32_t >( i * 2 );
+			const auto next_inner = vtx_base + 1 + static_cast< std::uint32_t >( ( i + 1 ) * 2 );
+			const auto next_outer = vtx_base + 2 + static_cast< std::uint32_t >( ( i + 1 ) * 2 );
+
+			const auto base_idx = i * 9;
 			idx_data[ base_idx + 0 ] = vtx_base;
-			idx_data[ base_idx + 1 ] = vtx_base + 1 + static_cast< std::uint32_t >( i );
-			idx_data[ base_idx + 2 ] = vtx_base + 1 + static_cast< std::uint32_t >( i + 1 );
+			idx_data[ base_idx + 1 ] = curr_inner;
+			idx_data[ base_idx + 2 ] = next_inner;
+			idx_data[ base_idx + 3 ] = curr_inner;
+			idx_data[ base_idx + 4 ] = curr_outer;
+			idx_data[ base_idx + 5 ] = next_outer;
+			idx_data[ base_idx + 6 ] = curr_inner;
+			idx_data[ base_idx + 7 ] = next_outer;
+			idx_data[ base_idx + 8 ] = next_inner;
 		}
 
-		this->m_commands.data( )[ this->m_commands.size( ) - 1 ].m_idx_count += static_cast< std::uint32_t >( idx_count );
+		this->m_commands.data( )[ this->m_commands.size( ) - 1 ].m_idx_count += static_cast< std::uint32_t >( tri_count ) * 3u;
 	}
 
 	void draw_list::add_text( float x, float y, std::string_view text, const font* f, rgba color )
@@ -1427,10 +1597,11 @@ namespace zdraw {
 		auto current_x{ x };
 		auto current_y{ y + f->m_ascent };
 
-		auto text_width = 0.0f;
+		auto text_width{ 0.0f };
 		auto text_height = f->m_line_height;
 
-		auto temp_x = 0.0f;
+		auto temp_x{ 0.0f };
+
 		for ( char c : text )
 		{
 			if ( c == '\n' )
@@ -1656,8 +1827,11 @@ namespace zdraw {
 		}
 
 		{
+			for ( auto& dl : detail::g_render.m_draw_lists )
+			{
+				dl.reserve( 5000u, 10000u, 256u );
+			}
 
-			detail::g_render.m_current_draw_list.reserve( 5000u, 10000u, 256u );
 			detail::g_render.m_default_font = detail::create_font( { std::span( reinterpret_cast< const std::byte* >( fonts::inter ), sizeof( fonts::inter ) ) }, 15.0f, 512, 512 );
 			detail::g_render.m_font_stack.push_back( detail::g_render.m_default_font );
 		}
@@ -1690,7 +1864,11 @@ namespace zdraw {
 			d.m_framerate = d.m_framerate * ( 1.0f - d.k_framerate_smoothing ) + instantaneous_fps * d.k_framerate_smoothing;
 		}
 
-		d.m_current_draw_list.clear( );
+		for ( auto& dl : d.m_draw_lists )
+		{
+			dl.clear( );
+		}
+
 		d.m_state_cache.reset_frame( );
 
 		d.m_vertex_buffer.reset_offsets( );
@@ -1703,42 +1881,6 @@ namespace zdraw {
 	void end_frame( )
 	{
 		auto& d{ detail::g_render };
-		auto& dl{ d.m_current_draw_list };
-
-		if ( dl.m_vertices.size( ) == 0 || dl.m_commands.size( ) == 0 ) [[unlikely]]
-		{
-			return;
-		}
-
-		detail::ensure_buffer_capacity( );
-
-		const auto vertex_data_size{ static_cast< std::uint32_t >( dl.m_vertices.size( ) ) * static_cast< std::uint32_t >( sizeof( vertex ) ) };
-		const auto index_data_size{ static_cast< std::uint32_t >( dl.m_indices.size( ) ) * static_cast< std::uint32_t >( sizeof( std::uint32_t ) ) };
-
-		if ( !d.m_vertex_buffer.map_discard( d.m_context.Get( ) ) || !d.m_index_buffer.map_discard( d.m_context.Get( ) ) )
-		{
-			d.m_vertex_buffer.unmap( d.m_context.Get( ) );
-			d.m_index_buffer.unmap( d.m_context.Get( ) );
-			return;
-		}
-
-		auto vertex_dest{ d.m_vertex_buffer.allocate( vertex_data_size ) };
-		auto index_dest{ d.m_index_buffer.allocate( index_data_size ) };
-
-		if ( vertex_dest != nullptr && index_dest != nullptr )
-		{
-			std::memcpy( vertex_dest, dl.m_vertices.data( ), vertex_data_size );
-			std::memcpy( index_dest, dl.m_indices.data( ), index_data_size );
-		}
-		else
-		{
-			d.m_vertex_buffer.unmap( d.m_context.Get( ) );
-			d.m_index_buffer.unmap( d.m_context.Get( ) );
-			return;
-		}
-
-		d.m_vertex_buffer.unmap( d.m_context.Get( ) );
-		d.m_index_buffer.unmap( d.m_context.Get( ) );
 
 		D3D11_VIEWPORT viewport{};
 		UINT num_viewports{ 1u };
@@ -1746,58 +1888,101 @@ namespace zdraw {
 		const float vp_w = num_viewports > 0 ? viewport.Width : static_cast< float >( GetSystemMetrics( SM_CXSCREEN ) );
 		const float vp_h = num_viewports > 0 ? viewport.Height : static_cast< float >( GetSystemMetrics( SM_CYSCREEN ) );
 
-		detail::setup_projection_matrix( vp_w, vp_h );
-		detail::setup_render_state( );
-
 		D3D11_RECT viewport_rect{};
 		viewport_rect.left = 0;
 		viewport_rect.top = 0;
 		viewport_rect.right = static_cast< LONG >( std::ceil( vp_w ) );
 		viewport_rect.bottom = static_cast< LONG >( std::ceil( vp_h ) );
-		d.m_context->RSSetScissorRects( 1, &viewport_rect );
-		d.m_state_cache.set_scissor( viewport_rect );
 
-		auto& state_cache{ d.m_state_cache };
-		for ( std::size_t i{ 0 }; i < dl.m_commands.size( ); ++i )
+		d.m_frame_vertex_count = 0u;
+		d.m_frame_index_count = 0u;
+
+		for ( auto& dl : d.m_draw_lists )
 		{
-			const auto& cmd{ dl.m_commands.data( )[ i ] };
-			if ( cmd.m_idx_count == 0u )
+			if ( dl.m_vertices.size( ) == 0 || dl.m_commands.size( ) == 0 )
 			{
 				continue;
 			}
 
-			D3D11_RECT scissor{ viewport_rect };
-			if ( cmd.m_has_clip )
+			detail::ensure_buffer_capacity( dl );
+
+			const auto vertex_data_size{ static_cast< std::uint32_t >( dl.m_vertices.size( ) ) * static_cast< std::uint32_t >( sizeof( vertex ) ) };
+			const auto index_data_size{ static_cast< std::uint32_t >( dl.m_indices.size( ) ) * static_cast< std::uint32_t >( sizeof( std::uint32_t ) ) };
+
+			if ( !d.m_vertex_buffer.map_discard( d.m_context.Get( ) ) || !d.m_index_buffer.map_discard( d.m_context.Get( ) ) )
 			{
-				scissor = detail::intersect_rect( scissor, cmd.m_clip_rect );
-				if ( scissor.right <= scissor.left || scissor.bottom <= scissor.top )
+				d.m_vertex_buffer.unmap( d.m_context.Get( ) );
+				d.m_index_buffer.unmap( d.m_context.Get( ) );
+				continue;
+			}
+
+			auto vertex_dest{ d.m_vertex_buffer.allocate( vertex_data_size ) };
+			auto index_dest{ d.m_index_buffer.allocate( index_data_size ) };
+
+			if ( vertex_dest != nullptr && index_dest != nullptr )
+			{
+				std::memcpy( vertex_dest, dl.m_vertices.data( ), vertex_data_size );
+				std::memcpy( index_dest, dl.m_indices.data( ), index_data_size );
+			}
+			else
+			{
+				d.m_vertex_buffer.unmap( d.m_context.Get( ) );
+				d.m_index_buffer.unmap( d.m_context.Get( ) );
+				continue;
+			}
+
+			d.m_vertex_buffer.unmap( d.m_context.Get( ) );
+			d.m_index_buffer.unmap( d.m_context.Get( ) );
+
+			detail::setup_projection_matrix( vp_w, vp_h );
+			detail::setup_render_state( );
+
+			d.m_state_cache.reset_frame( );
+			d.m_context->RSSetScissorRects( 1, &viewport_rect );
+			d.m_state_cache.set_scissor( viewport_rect );
+
+			auto& state_cache{ d.m_state_cache };
+			for ( std::size_t i{ 0 }; i < dl.m_commands.size( ); ++i )
+			{
+				const auto& cmd{ dl.m_commands.data( )[ i ] };
+				if ( cmd.m_idx_count == 0u )
 				{
 					continue;
 				}
+
+				D3D11_RECT scissor{ viewport_rect };
+				if ( cmd.m_has_clip )
+				{
+					scissor = detail::intersect_rect( scissor, cmd.m_clip_rect );
+					if ( scissor.right <= scissor.left || scissor.bottom <= scissor.top )
+					{
+						continue;
+					}
+				}
+
+				if ( state_cache.needs_scissor( scissor ) )
+				{
+					d.m_context->RSSetScissorRects( 1, &scissor );
+					state_cache.set_scissor( scissor );
+				}
+
+				if ( state_cache.needs_texture_bind( cmd.m_texture.Get( ) ) )
+				{
+					d.m_context->PSSetShaderResources( 0, 1, cmd.m_texture.GetAddressOf( ) );
+					state_cache.set_texture( cmd.m_texture.Get( ) );
+				}
+
+				d.m_context->DrawIndexed( cmd.m_idx_count, cmd.m_idx_offset, 0 );
 			}
 
-			if ( state_cache.needs_scissor( scissor ) )
-			{
-				d.m_context->RSSetScissorRects( 1, &scissor );
-				state_cache.set_scissor( scissor );
-			}
-
-			if ( state_cache.needs_texture_bind( cmd.m_texture.Get( ) ) )
-			{
-				d.m_context->PSSetShaderResources( 0, 1, cmd.m_texture.GetAddressOf( ) );
-				state_cache.set_texture( cmd.m_texture.Get( ) );
-			}
-
-			d.m_context->DrawIndexed( cmd.m_idx_count, cmd.m_idx_offset, 0 );
+			d.m_frame_vertex_count += static_cast< std::uint32_t >( dl.m_vertices.size( ) );
+			d.m_frame_index_count += static_cast< std::uint32_t >( dl.m_indices.size( ) );
 		}
-
-		d.m_frame_vertex_count = static_cast< std::uint32_t >( dl.m_vertices.size( ) );
-		d.m_frame_index_count = static_cast< std::uint32_t >( dl.m_indices.size( ) );
 	}
 
-	draw_list& get_draw_list( ) noexcept
+	draw_list& get_draw_list( draw_layer layer ) noexcept
 	{
-		return detail::g_render.m_current_draw_list;
+		return detail::g_render.m_draw_lists[ static_cast< int >( layer ) ];
 	}
 
 	std::pair<int, int> get_display_size( ) noexcept
@@ -2001,7 +2186,7 @@ namespace zdraw {
 		for ( UINT i{ 0 }; i < pixel_count; ++i )
 		{
 			const auto idx{ i * 4 };
-			const auto r{ pixels[ static_cast<std::size_t>( idx ) + 0 ] };
+			const auto r{ pixels[ static_cast< std::size_t >( idx ) + 0 ] };
 			const auto g{ pixels[ static_cast< std::size_t >( idx ) + 1 ] };
 			const auto b{ pixels[ static_cast< std::size_t >( idx ) + 2 ] };
 			const auto a{ pixels[ static_cast< std::size_t >( idx ) + 3 ] };
@@ -2132,102 +2317,6 @@ namespace zdraw {
 		{
 			detail::g_render.m_font_stack.pop_back( );
 		}
-	}
-
-	void push_clip_rect( float x0, float y0, float x1, float y1 )
-	{
-		get_draw_list( ).push_clip_rect( x0, y0, x1, y1 );
-	}
-
-	void pop_clip_rect( )
-	{
-		get_draw_list( ).pop_clip_rect( );
-	}
-
-	void line( float x0, float y0, float x1, float y1, rgba color, float thickness )
-	{
-		get_draw_list( ).add_line( x0, y0, x1, y1, color, thickness );
-	}
-
-	void rect( float x, float y, float w, float h, rgba color, float thickness )
-	{
-		get_draw_list( ).add_rect( x, y, w, h, color, thickness );
-	}
-
-	void rect_cornered( float x, float y, float w, float h, rgba color, float corner_length, float thickness )
-	{
-		get_draw_list( ).add_rect_cornered( x, y, w, h, color, corner_length, thickness );
-	}
-
-	void rect_filled( float x, float y, float w, float h, rgba color )
-	{
-		get_draw_list( ).add_rect_filled( x, y, w, h, color );
-	}
-
-	void rect_filled_multi_color( float x, float y, float w, float h, rgba color_tl, rgba color_tr, rgba color_br, rgba color_bl )
-	{
-		get_draw_list( ).add_rect_filled_multi_color( x, y, w, h, color_tl, color_tr, color_br, color_bl );
-	}
-
-	void rect_textured( float x, float y, float w, float h, ID3D11ShaderResourceView* tex, float u0, float v0, float u1, float v1, rgba color )
-	{
-		get_draw_list( ).add_rect_textured( x, y, w, h, tex, u0, v0, u1, v1, color );
-	}
-
-	void convex_poly_filled( std::span<const float> points, rgba color )
-	{
-		get_draw_list( ).add_convex_poly_filled( points, color );
-	}
-
-	void polyline( std::span<const float> points, rgba color, bool closed, float thickness )
-	{
-		get_draw_list( ).add_polyline( points, color, closed, thickness );
-	}
-
-	void polyline_multi_color( std::span<const float> points, std::span<const rgba> colors, bool closed, float thickness )
-	{
-		get_draw_list( ).add_polyline_multi_color( points, colors, closed, thickness );
-	}
-
-	void triangle( float x0, float y0, float x1, float y1, float x2, float y2, rgba color, float thickness )
-	{
-		get_draw_list( ).add_triangle( x0, y0, x1, y1, x2, y2, color, thickness );
-	}
-
-	void triangle_filled( float x0, float y0, float x1, float y1, float x2, float y2, rgba color )
-	{
-		get_draw_list( ).add_triangle_filled( x0, y0, x1, y1, x2, y2, color );
-	}
-
-	void triangle_filled_multi_color( float x0, float y0, float x1, float y1, float x2, float y2, rgba color0, rgba color1, rgba color2 )
-	{
-		get_draw_list( ).add_triangle_filled_multi_color( x0, y0, x1, y1, x2, y2, color0, color1, color2 );
-	}
-
-	void circle( float x, float y, float radius, rgba color, int segments, float thickness )
-	{
-		get_draw_list( ).add_circle( x, y, radius, color, segments, thickness );
-	}
-
-	void circle_filled( float x, float y, float radius, rgba color, int segments )
-	{
-		get_draw_list( ).add_circle_filled( x, y, radius, color, segments );
-	}
-
-	void arc( float x, float y, float radius, float start_angle, float end_angle, rgba color, int segments, float thickness )
-	{
-		get_draw_list( ).add_arc( x, y, radius, start_angle, end_angle, color, segments, thickness );
-	}
-
-	void arc_filled( float x, float y, float radius, float start_angle, float end_angle, rgba color, int segments )
-	{
-		get_draw_list( ).add_arc_filled( x, y, radius, start_angle, end_angle, color, segments );
-	}
-
-	void text_multi_color( float x, float y, std::string_view text, rgba color_tl, rgba color_tr, rgba color_br, rgba color_bl, const font* fnt )
-	{
-		const auto f{ fnt != nullptr ? fnt : get_font( ) };
-		get_draw_list( ).add_text_multi_color( x, y, text, f, color_tl, color_tr, color_br, color_bl );
 	}
 
 	std::pair<float, float> measure_text( std::string_view text, const font* fnt )

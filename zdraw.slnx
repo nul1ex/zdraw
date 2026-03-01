@@ -1,7 +1,7 @@
 <Solution>
   <Configurations>
+    <BuildType Name="Release" />
     <Platform Name="x64" />
-    <Platform Name="x86" />
   </Configurations>
   <Project Path="zdraw/zdraw.vcxproj" Id="cf5aa261-1bb0-4965-9ad3-1c2aeda412f9" />
 </Solution>

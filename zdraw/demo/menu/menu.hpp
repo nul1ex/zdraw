@@ -1,6 +1,6 @@
 #pragma once
 
-#include "resources/background.hpp"
+#include <../zdraw/zscene/zscene.hpp>
 
 namespace menu {
 

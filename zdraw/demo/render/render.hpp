@@ -1,5 +1,10 @@
 #pragma once
 
+#define NOMINMAX
+#include <windows.h>
+#include <d3d11.h>
+#include <dxgi.h>
+
 namespace render {
 
 	bool initialize( );
