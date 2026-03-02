@@ -6,21 +6,25 @@ namespace render {
 	{
 		if ( !window::initialize( ) )
 		{
+			std::printf("failed to initialize window\n");
 			return false;
 		}
 
 		if ( !directx::initialize( ) )
 		{
+			std::printf("failed to initialize directx\n");
 			return false;
 		}
 
 		if ( !zdraw::initialize( directx::device, directx::device_context ) )
 		{
+			std::printf("failed to initialize zdraw\n");
 			return false;
 		}
 
 		if ( !zui::initialize( window::hwnd ) )
 		{
+			std::printf("failed to initialize zui\n");
 			return false;
 		}
 
@@ -36,7 +40,7 @@ namespace render {
 
 		while ( msg.message != WM_QUIT )
 		{
-			while ( PeekMessage( &msg, window::hwnd, 0, 0, PM_REMOVE ) )
+			while ( PeekMessage( &msg, nullptr, 0, 0, PM_REMOVE ) )
 			{
 				if ( msg.message == WM_QUIT )
 				{
@@ -75,7 +79,7 @@ namespace render {
 		const WNDCLASSEXW wc
 		{
 			.cbSize = sizeof( WNDCLASSEXW ),
-			.style = CS_CLASSDC,
+			.style = CS_HREDRAW | CS_VREDRAW,
 			.lpfnWndProc = procedure,
 			.hInstance = GetModuleHandleW( nullptr ),
 			.hCursor = LoadCursorW( nullptr, IDC_ARROW ),
@@ -102,7 +106,50 @@ namespace render {
 	long long __stdcall window::procedure( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam )
 	{
 		zui::process_wndproc_message( msg, wparam, lparam );
+
+		// @note: could move these to process_wndproc_message
+
+		if (msg == WM_SIZE && wparam != SIZE_MINIMIZED)
+			directx::resize(LOWORD(lparam), HIWORD(lparam));
+
+		if (msg == WM_DESTROY)
+			PostQuitMessage(0);
+
 		return DefWindowProcW( hwnd, msg, wparam, lparam );
+	}
+
+	void directx::resize(UINT width, UINT height)
+	{
+		if (!swap_chain || width == 0 || height == 0)
+			return;
+
+		device_context->OMSetRenderTargets(0, nullptr, nullptr);
+
+		if (render_target_view) {
+			render_target_view->Release();
+			render_target_view = nullptr;
+		}
+
+		swap_chain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0);
+
+		{
+			ID3D11Texture2D* back_buffer{};
+			swap_chain->GetBuffer(0, IID_PPV_ARGS(&back_buffer));
+			device->CreateRenderTargetView(back_buffer, nullptr, &render_target_view);
+			back_buffer->Release();
+		}
+
+		D3D11_VIEWPORT viewport
+		{
+			.TopLeftX = 0.0f,
+			.TopLeftY = 0.0f,
+			.Width = static_cast<float>(width),
+			.Height = static_cast<float>(height),
+			.MinDepth = 0.0f,
+			.MaxDepth = 1.0f
+		};
+
+		device_context->RSSetViewports(1, &viewport);
 	}
 
 	bool directx::initialize( )
@@ -115,8 +162,8 @@ namespace render {
 			.BufferCount = 2,
 			.OutputWindow = window::hwnd,
 			.Windowed = TRUE,
-			.SwapEffect = DXGI_SWAP_EFFECT_DISCARD,
-			.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH
+			.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD,
+			.Flags = 0 
 		};
 
 		constexpr D3D_FEATURE_LEVEL feature_levels[ ]{ D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0 };
@@ -142,12 +189,15 @@ namespace render {
 			return false;
 		}
 
+		RECT rc{};
+		GetClientRect(window::hwnd, &rc);
+
 		D3D11_VIEWPORT viewport
 		{
 			.TopLeftX = 0.0f,
 			.TopLeftY = 0.0f,
-			.Width = static_cast< float >( GetSystemMetrics( SM_CXSCREEN ) ),
-			.Height = static_cast< float >( GetSystemMetrics( SM_CYSCREEN ) ),
+			.Width = static_cast<float>(rc.right - rc.left),
+			.Height = static_cast<float>(rc.bottom - rc.top),
 			.MinDepth = 0.0f,
 			.MaxDepth = 1.0f
 		};

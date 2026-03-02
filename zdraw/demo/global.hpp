@@ -7,3 +7,6 @@
 
 #include <menu/menu.hpp>
 #include <render/render.hpp>
+
+// config
+#define WINDOW_MODE false

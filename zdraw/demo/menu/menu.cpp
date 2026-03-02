@@ -42,7 +42,8 @@ namespace menu {
 			static auto background = zdraw::load_texture_from_memory( { std::span( reinterpret_cast< const std::byte* >( resources::background ), sizeof( resources::background ) ) } );
 			if ( background )
 			{
-				zdraw::get_draw_list( ).add_rect_textured( 0, 0, 1280, 720, background.Get( ) );
+				const auto [w, h] = zdraw::get_display_size();
+				zdraw::get_draw_list().add_rect_textured(0, 0, w, h, background.Get());
 			}
 		}
 
