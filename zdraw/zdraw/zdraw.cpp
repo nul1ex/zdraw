@@ -281,7 +281,7 @@ namespace zdraw {
 				return false;
 			}
 
-			D3D11_SAMPLER_DESC sampler_desc;
+			D3D11_SAMPLER_DESC sampler_desc{};
 			sampler_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
 			sampler_desc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
 			sampler_desc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -1809,20 +1809,40 @@ namespace zdraw {
 	{
 		if ( device == nullptr || context == nullptr ) [[unlikely]]
 		{
+			std::printf("device or context is null\n");
 			return false;
 		}
 
 		detail::g_render.m_device = device;
 		detail::g_render.m_context = context;
 
-		if (
-			!detail::create_shaders( )
-			|| !detail::create_render_states( )
-			|| !detail::create_white_texture( )
-			|| !detail::create_constant_buffer( )
-			|| !detail::create_persistent_buffers( )
-			)
+		if (!detail::create_shaders()) 
 		{
+			std::printf("failed to create shaders\n");
+			return false;
+		}
+
+		if (!detail::create_render_states())
+		{
+			std::printf("failed to create render states\n");
+			return false;
+		}
+
+		if (!detail::create_white_texture())
+		{
+			std::printf("failed to create white texture\n");
+			return false;
+		}
+
+		if (!detail::create_constant_buffer())
+		{
+			std::printf("failed to create contsant buffer\n");
+			return false;
+		}
+
+		if (!detail::create_persistent_buffers())
+		{
+			std::printf("failed to create persistent buffers\n");
 			return false;
 		}
 
@@ -1985,28 +2005,23 @@ namespace zdraw {
 		return detail::g_render.m_draw_lists[ static_cast< int >( layer ) ];
 	}
 
-	std::pair<int, int> get_display_size( ) noexcept
+	std::pair<int, int> get_display_size() noexcept
 	{
-		static std::pair<int, int> cached_size = [ ]( ) -> std::pair<int, int>
-			{
-				auto& d{ detail::g_render };
+		auto& d{ detail::g_render };
+		D3D11_VIEWPORT viewport{};
+		UINT num_viewports{ 1u };
+		
+		if (d.m_context)
+		{
+			d.m_context->RSGetViewports(&num_viewports, &viewport);
+		}
 
-				D3D11_VIEWPORT viewport{};
-				UINT num_viewports{ 1u };
-				if ( d.m_context )
-				{
-					d.m_context->RSGetViewports( &num_viewports, &viewport );
-				}
+		if (num_viewports > 0 && viewport.Width > 0.0f && viewport.Height > 0.0f)
+		{
+			return { static_cast<int>(std::lround(viewport.Width)), static_cast<int>(std::lround(viewport.Height)) };
+		}
 
-				if ( num_viewports > 0 && viewport.Width > 0.0f && viewport.Height > 0.0f )
-				{
-					return { static_cast< int >( std::lround( viewport.Width ) ), static_cast< int >( std::lround( viewport.Height ) ) };
-				}
-
-				return { 0, 0 };
-			}( );
-
-		return cached_size;
+		return { 0, 0 };
 	}
 
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> load_texture_from_memory( std::span<const std::byte> data, int* out_width, int* out_height )

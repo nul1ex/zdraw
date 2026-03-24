@@ -20,7 +20,7 @@ namespace render {
 	} // namespace window
 
 	namespace directx {
-
+		void resize(UINT width, UINT height);
 		bool initialize( );
 
 		inline ID3D11Device* device{ nullptr };
