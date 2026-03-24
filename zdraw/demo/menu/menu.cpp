@@ -42,8 +42,8 @@ namespace menu {
 			static auto background = zdraw::load_texture_from_memory( { std::span( reinterpret_cast< const std::byte* >( resources::background ), sizeof( resources::background ) ) } );
 			if ( background )
 			{
-				const auto [w, h] = zdraw::get_display_size();
-				zdraw::get_draw_list().add_rect_textured(0, 0, w, h, background.Get());
+				const auto [w, h] = zdraw::get_display_size( );
+				zdraw::get_draw_list( ).add_rect_textured( 0, 0, w, h, background.Get( ) );
 			}
 		}
 
@@ -99,18 +99,18 @@ namespace menu {
 
 				if ( zui::begin_group_box( "buttons", avail_w ) )
 				{
-					if ( zui::button( "full width button", zui::calc_item_width( 0 ), 28.0f ) ) { }
+					if ( zui::button( "full width button", zui::calc_item_width( 0 ), 28.0f ) ) {}
 
 					auto btn_w = zui::calc_item_width( 3 );
-					if ( zui::button( "btn 1", btn_w, 26.0f ) ) { }
+					if ( zui::button( "btn 1", btn_w, 26.0f ) ) {}
 
 					zui::same_line( );
 
-					if ( zui::button( "btn 2", btn_w, 26.0f ) ) { }
+					if ( zui::button( "btn 2", btn_w, 26.0f ) ) {}
 
 					zui::same_line( );
 
-					if ( zui::button( "btn 3", btn_w, 26.0f ) ) { }
+					if ( zui::button( "btn 3", btn_w, 26.0f ) ) {}
 
 					zui::end_group_box( );
 				}

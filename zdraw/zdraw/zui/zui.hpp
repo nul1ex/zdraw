@@ -61,6 +61,19 @@ namespace zui {
 		bool mouse_hovered( const rect& r );
 		window_state* get_current_window( );
 
+		float mouse_delta_x( );
+		float mouse_delta_y( );
+		float scroll_delta( );
+
+		bool right_mouse_down( );
+		bool right_mouse_clicked( );
+		bool right_mouse_released( );
+
+		bool is_key_down( int vk );
+		std::span<const int> key_presses( );
+		std::span<const int> key_releases( );
+		std::span<const wchar_t> input_chars( );
+
 	} // namespace detail
 
 	struct hsv

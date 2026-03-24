@@ -175,6 +175,54 @@ namespace
 				return true;
 			}
 
+			case WM_MBUTTONDOWN:
+			{
+				this->m_current.push_key_press( VK_MBUTTON );
+				this->m_current.key_down_map[ VK_MBUTTON ] = true;
+				return true;
+			}
+
+			case WM_MBUTTONUP:
+			{
+				this->m_current.push_key_release( VK_MBUTTON );
+				this->m_current.key_down_map[ VK_MBUTTON ] = false;
+				return true;
+			}
+
+			case WM_XBUTTONDOWN:
+			{
+				const auto button = GET_XBUTTON_WPARAM( wparam );
+				if ( button == XBUTTON1 )
+				{
+					this->m_current.push_key_press( VK_XBUTTON1 );
+					this->m_current.key_down_map[ VK_XBUTTON1 ] = true;
+				}
+				else if ( button == XBUTTON2 )
+				{
+					this->m_current.push_key_press( VK_XBUTTON2 );
+					this->m_current.key_down_map[ VK_XBUTTON2 ] = true;
+				}
+
+				return true;
+			}
+
+			case WM_XBUTTONUP:
+			{
+				const auto button = GET_XBUTTON_WPARAM( wparam );
+				if ( button == XBUTTON1 )
+				{
+					this->m_current.push_key_release( VK_XBUTTON1 );
+					this->m_current.key_down_map[ VK_XBUTTON1 ] = false;
+				}
+				else if ( button == XBUTTON2 )
+				{
+					this->m_current.push_key_release( VK_XBUTTON2 );
+					this->m_current.key_down_map[ VK_XBUTTON2 ] = false;
+				}
+
+				return true;
+			}
+
 			case WM_KEYDOWN:
 			case WM_SYSKEYDOWN:
 			{
@@ -426,6 +474,7 @@ namespace
 					return true;
 				}
 			}
+
 			return false;
 		}
 
@@ -514,8 +563,8 @@ namespace
 
 			if ( input.mouse_clicked && dropdown.contains( input.mouse_x, input.mouse_y ) )
 			{
-				const auto padding_top = 6.0f;
-				const auto item_height = 20.0f;
+				const auto padding_top{ 6.0f };
+				const auto item_height{ 20.0f };
 
 				for ( int i = 0; i < static_cast< int >( this->m_items.size( ) ); ++i )
 				{
@@ -641,13 +690,7 @@ namespace
 					auto hover_right = hover_left;
 					hover_right.a = 0;
 
-					dl.add_rect_filled_multi_color(
-						item_rect.x,
-						item_rect.y + slide_offset,
-						item_rect.w,
-						item_rect.h,
-						hover_left, hover_right, hover_right, hover_left
-					);
+					dl.add_rect_filled_multi_color( item_rect.x, item_rect.y + slide_offset, item_rect.w, item_rect.h, hover_left, hover_right, hover_right, hover_left );
 				}
 
 				auto [text_w, text_h] = zdraw::measure_text( this->m_items[ i ] );
@@ -661,7 +704,7 @@ namespace
 
 				text_col.a = static_cast< std::uint8_t >( text_col.a * item_alpha );
 
-				dl.add_text( text_x, text_y, this->m_items[ i ].c_str( ), zdraw::get_font( ), text_col );
+				dl.add_text( text_x, text_y, this->m_items[ i ].c_str( ), text_col );
 			}
 
 			dl.pop_clip_rect( );
@@ -751,8 +794,8 @@ namespace
 
 			if ( input.mouse_clicked && dropdown.contains( input.mouse_x, input.mouse_y ) )
 			{
-				const auto padding_top = 6.0f;
-				const auto item_height = 20.0f;
+				const auto padding_top{ 6.0f };
+				const auto item_height{ 20.0f };
 
 				for ( int i = 0; i < this->m_items_count; ++i )
 				{
@@ -851,13 +894,7 @@ namespace
 					auto hover_right = hover_left;
 					hover_right.a = 0;
 
-					dl.add_rect_filled_multi_color(
-						item_rect.x,
-						item_rect.y + slide_offset,
-						item_rect.w,
-						item_rect.h,
-						hover_left, hover_right, hover_right, hover_left
-					);
+					dl.add_rect_filled_multi_color( item_rect.x, item_rect.y + slide_offset, item_rect.w, item_rect.h, hover_left, hover_right, hover_right, hover_left );
 				}
 
 				constexpr auto check_size = 12.0f;
@@ -900,11 +937,12 @@ namespace
 				{
 					text_col = zui::lerp( text_col, style.checkbox_check, ( check_ease - 0.5f ) * 0.6f );
 				}
+
 				text_col = zui::lerp( text_col, zui::lighten( text_col, 1.2f ), hover_ease );
 
 				text_col.a = static_cast< std::uint8_t >( text_col.a * item_alpha );
 
-				dl.add_text( text_x, text_y, this->m_items[ i ].c_str( ), zdraw::get_font( ), text_col );
+				dl.add_text( text_x, text_y, this->m_items[ i ].c_str( ), text_col );
 			}
 
 			dl.pop_clip_rect( );
@@ -928,6 +966,7 @@ namespace
 						{
 							this->m_cached_display_text += ", ";
 						}
+
 						this->m_cached_display_text += this->m_items[ i ];
 					}
 				}
@@ -1130,7 +1169,7 @@ namespace
 				auto [text_w, text_h] = zdraw::measure_text( "copy" );
 				const auto text_x = copy_rect.x + ( copy_rect.w - text_w ) * 0.5f;
 				const auto text_y = copy_rect.y + ( copy_rect.h - text_h ) * 0.5f;
-				dl.add_text( text_x, text_y, "copy", zdraw::get_font( ), text_col );
+				dl.add_text( text_x, text_y, "copy", text_col );
 			}
 
 			{
@@ -1157,7 +1196,7 @@ namespace
 				auto [text_w, text_h] = zdraw::measure_text( "paste" );
 				const auto text_x = paste_rect.x + ( paste_rect.w - text_w ) * 0.5f;
 				const auto text_y = paste_rect.y + ( paste_rect.h - text_h ) * 0.5f;
-				dl.add_text( text_x, text_y, "paste", zdraw::get_font( ), text_col );
+				dl.add_text( text_x, text_y, "paste", text_col );
 			}
 		}
 
@@ -1736,6 +1775,25 @@ namespace zui {
 		bool mouse_released( ) { return ctx( ).input( ).mouse_released( ); }
 		bool mouse_hovered( const rect& r ) { return ctx( ).input( ).hovered( r ); }
 		window_state* get_current_window( ) { return ctx( ).current_window( ); }
+
+		float mouse_delta_x( ) { return ctx( ).input( ).mouse_delta_x( ); }
+		float mouse_delta_y( ) { return ctx( ).input( ).mouse_delta_y( ); }
+		float scroll_delta( ) { return ctx( ).input( ).scroll_delta( ); }
+
+		bool right_mouse_down( ) { return ctx( ).input( ).right_mouse_down( ); }
+		bool right_mouse_clicked( ) { return ctx( ).input( ).right_mouse_clicked( ); }
+		bool right_mouse_released( ) { return ctx( ).input( ).right_mouse_released( ); }
+
+		bool is_key_down( int vk )
+		{
+			const auto& map = ctx( ).input( ).current( ).key_down_map;
+			const auto it = map.find( vk );
+			return it != map.end( ) && it->second;
+		}
+
+		std::span<const int> key_presses( ) { return ctx( ).input( ).current( ).key_presses( ); }
+		std::span<const int> key_releases( ) { return ctx( ).input( ).current( ).key_releases( ); }
+		std::span<const wchar_t> input_chars( ) { return ctx( ).input( ).current( ).chars( ); }
 
 	} // namespace detail
 
@@ -2446,7 +2504,7 @@ namespace zui {
 			zdraw::get_draw_list( ).add_rect( gap_start, abs.y, gap_end - gap_start, title_h, style.group_box_border, style.border_thickness );
 
 			const auto text_y = abs.y + ( title_h - title_h_measured ) * 0.5f;
-			zdraw::get_draw_list( ).add_text( text_x, text_y, title_str, zdraw::get_font( ), style.group_box_title_text );
+			zdraw::get_draw_list( ).add_text( text_x, text_y, title_str, style.group_box_title_text );
 		}
 
 		auto& scroll_states = ctx( ).m_scroll_states;
@@ -2655,7 +2713,7 @@ namespace zui {
 		const auto local = item_add( label_w, label_h );
 		const auto abs = to_absolute( local );
 
-		zdraw::get_draw_list( ).add_text( abs.x, abs.y, label, zdraw::get_font( ), ctx( ).get_style( ).text );
+		zdraw::get_draw_list( ).add_text( abs.x, abs.y, label, ctx( ).get_style( ).text );
 	}
 
 	void text_colored( std::string_view label, const zdraw::rgba& color )
@@ -2670,7 +2728,7 @@ namespace zui {
 		const auto local = item_add( label_w, label_h );
 		const auto abs = to_absolute( local );
 
-		zdraw::get_draw_list( ).add_text( abs.x, abs.y, label, zdraw::get_font( ), color );
+		zdraw::get_draw_list( ).add_text( abs.x, abs.y, label, color );
 	}
 
 	void text_gradient( std::string_view label, const zdraw::rgba& color_left, const zdraw::rgba& color_right )
@@ -2685,7 +2743,7 @@ namespace zui {
 		const auto local = item_add( label_w, label_h );
 		const auto abs = to_absolute( local );
 
-		zdraw::get_draw_list( ).add_text_multi_color( abs.x, abs.y, label, zdraw::get_font( ), color_left, color_right, color_right, color_left );
+		zdraw::get_draw_list( ).add_text_multi_color( abs.x, abs.y, label, color_left, color_right, color_right, color_left );
 	}
 
 	void text_gradient_vertical( std::string_view label, const zdraw::rgba& color_top, const zdraw::rgba& color_bottom )
@@ -2700,7 +2758,7 @@ namespace zui {
 		const auto local = item_add( label_w, label_h );
 		const auto abs = to_absolute( local );
 
-		zdraw::get_draw_list( ).add_text_multi_color( abs.x, abs.y, label, zdraw::get_font( ), color_top, color_top, color_bottom, color_bottom );
+		zdraw::get_draw_list( ).add_text_multi_color( abs.x, abs.y, label, color_top, color_top, color_bottom, color_bottom );
 	}
 
 	void text_gradient_four( std::string_view label, const zdraw::rgba& color_tl, const zdraw::rgba& color_tr, const zdraw::rgba& color_br, const zdraw::rgba& color_bl )
@@ -2715,7 +2773,7 @@ namespace zui {
 		const auto local = item_add( label_w, label_h );
 		const auto abs = to_absolute( local );
 
-		zdraw::get_draw_list( ).add_text_multi_color( abs.x, abs.y, label, zdraw::get_font( ), color_tl, color_tr, color_br, color_bl );
+		zdraw::get_draw_list( ).add_text_multi_color( abs.x, abs.y, label, color_tl, color_tr, color_br, color_bl );
 	}
 
 	bool button( std::string_view label, float w, float h )
@@ -2761,7 +2819,7 @@ namespace zui {
 			const auto text_x = abs.x + ( abs.w - label_w ) * 0.5f;
 			const auto text_y = abs.y + ( abs.h - label_h ) * 0.5f;
 
-			zdraw::get_draw_list( ).add_text( text_x, text_y, label_text, zdraw::get_font( ), style.text );
+			zdraw::get_draw_list( ).add_text( text_x, text_y, label_text, style.text );
 		}
 
 		return pressed;
@@ -2865,7 +2923,7 @@ namespace zui {
 			const auto available_w = win->bounds.right( ) - text_x - style.window_padding_x;
 			const auto label_text = maybe_truncate_text( display_label, available_w, ctx( ).truncation_buffer( ) );
 
-			zdraw::get_draw_list( ).add_text( text_x, text_y, label_text, zdraw::get_font( ), style.text );
+			zdraw::get_draw_list( ).add_text( text_x, text_y, label_text, style.text );
 		}
 
 		return changed;
@@ -3006,11 +3064,11 @@ namespace zui {
 			{
 				const auto available_label_w = slider_width - value_w - style.item_spacing_x;
 				const auto label_text = maybe_truncate_text( display_label, available_label_w, ctx( ).truncation_buffer( ) );
-				zdraw::get_draw_list( ).add_text( abs.x, abs.y, label_text, zdraw::get_font( ), style.text );
+				zdraw::get_draw_list( ).add_text( abs.x, abs.y, label_text, style.text );
 			}
 
 			const auto value_col = lerp( style.text, lighten( style.slider_fill, 1.2f ), hover_anim * 0.35f );
-			zdraw::get_draw_list( ).add_text( abs.x + slider_width - value_w, abs.y, value_buf, zdraw::get_font( ), value_col );
+			zdraw::get_draw_list( ).add_text( abs.x + slider_width - value_w, abs.y, value_buf, value_col );
 
 			const auto track_bg = darken( style.slider_bg, 0.7f );
 			zdraw::get_draw_list( ).add_rect_filled( track_rect.x, track_rect.y, track_rect.w, track_rect.h, track_bg );
@@ -3211,7 +3269,7 @@ namespace zui {
 
 		const auto text_x = button_rect.x + ( button_rect.w - button_text_w ) * 0.5f;
 		const auto text_y = button_rect.y + ( button_rect.h - button_text_h ) * 0.5f;
-		zdraw::get_draw_list( ).add_text( text_x, text_y, button_text, zdraw::get_font( ), style.text );
+		zdraw::get_draw_list( ).add_text( text_x, text_y, button_text, style.text );
 
 		if ( !display_label.empty( ) )
 		{
@@ -3221,7 +3279,7 @@ namespace zui {
 			const auto available_w = win->bounds.right( ) - label_x - style.window_padding_x;
 			const auto label_text = maybe_truncate_text( display_label, available_w, ctx( ).truncation_buffer( ) );
 
-			zdraw::get_draw_list( ).add_text( label_x, label_y, label_text, zdraw::get_font( ), style.text );
+			zdraw::get_draw_list( ).add_text( label_x, label_y, label_text, style.text );
 		}
 
 		if ( is_waiting )
@@ -3304,7 +3362,7 @@ namespace zui {
 		if ( !display_label.empty( ) )
 		{
 			const auto label_text = maybe_truncate_text( display_label, width, ctx( ).truncation_buffer( ) );
-			zdraw::get_draw_list( ).add_text( abs.x, abs.y, label_text, zdraw::get_font( ), style.text );
+			zdraw::get_draw_list( ).add_text( abs.x, abs.y, label_text, style.text );
 		}
 
 		const auto button_y = abs.y + label_h + spacing;
@@ -3347,7 +3405,7 @@ namespace zui {
 		const auto [text_w, text_h] = zdraw::measure_text( current_text );
 		const auto text_x = button_rect.x + style.frame_padding_x;
 		const auto text_y = button_rect.y + ( combo_height - text_h ) * 0.5f;
-		zdraw::get_draw_list( ).add_text( text_x, text_y, current_text, zdraw::get_font( ), style.text );
+		zdraw::get_draw_list( ).add_text( text_x, text_y, current_text, style.text );
 
 		constexpr auto arrow_size{ 6.0f };
 		constexpr auto arrow_height{ 3.5f };
@@ -3414,7 +3472,7 @@ namespace zui {
 		if ( !display_label.empty( ) )
 		{
 			const auto label_text = maybe_truncate_text( display_label, width, ctx( ).truncation_buffer( ) );
-			zdraw::get_draw_list( ).add_text( abs.x, abs.y, label_text, zdraw::get_font( ), style.text );
+			zdraw::get_draw_list( ).add_text( abs.x, abs.y, label_text, style.text );
 		}
 
 		const auto button_y = abs.y + label_h + spacing;
@@ -3540,12 +3598,12 @@ namespace zui {
 			const auto total_width = full_text_w + gap;
 
 			const auto offset1 = -scroll_state.scroll_offset;
-			zdraw::get_draw_list( ).add_text( text_x + offset1, text_y, display_text, zdraw::get_font( ), style.text );
+			zdraw::get_draw_list( ).add_text( text_x + offset1, text_y, display_text, style.text );
 
 			const auto offset2 = offset1 + total_width;
 			if ( offset2 < max_text_width )
 			{
-				zdraw::get_draw_list( ).add_text( text_x + offset2, text_y, display_text, zdraw::get_font( ), style.text );
+				zdraw::get_draw_list( ).add_text( text_x + offset2, text_y, display_text, style.text );
 			}
 		}
 		else if ( needs_scroll )
@@ -3571,11 +3629,11 @@ namespace zui {
 			}
 
 			truncated += "...";
-			zdraw::get_draw_list( ).add_text( text_x, text_y, truncated, zdraw::get_font( ), style.text );
+			zdraw::get_draw_list( ).add_text( text_x, text_y, truncated, style.text );
 		}
 		else
 		{
-			zdraw::get_draw_list( ).add_text( text_x, text_y, display_text, zdraw::get_font( ), style.text );
+			zdraw::get_draw_list( ).add_text( text_x, text_y, display_text, style.text );
 		}
 
 		zdraw::get_draw_list( ).pop_clip_rect( );
@@ -3587,12 +3645,12 @@ namespace zui {
 
 		if ( is_open )
 		{
-			const float points[ ] = { arrow_x, arrow_y + arrow_height, arrow_x + arrow_size * 0.5f, arrow_y, arrow_x + arrow_size, arrow_y + arrow_height };
+			const float points[ ]{ arrow_x, arrow_y + arrow_height, arrow_x + arrow_size * 0.5f, arrow_y, arrow_x + arrow_size, arrow_y + arrow_height };
 			zdraw::get_draw_list( ).add_polyline( points, arrow_col, false, 1.5f );
 		}
 		else
 		{
-			const float points[ ] = { arrow_x, arrow_y, arrow_x + arrow_size * 0.5f, arrow_y + arrow_height, arrow_x + arrow_size, arrow_y };
+			const float points[ ]{ arrow_x, arrow_y, arrow_x + arrow_size * 0.5f, arrow_y + arrow_height, arrow_x + arrow_size, arrow_y };
 			zdraw::get_draw_list( ).add_polyline( points, arrow_col, false, 1.5f );
 		}
 
@@ -3710,7 +3768,7 @@ namespace zui {
 			const auto available_w = win->bounds.right( ) - text_x - style.window_padding_x;
 			const auto label_text = maybe_truncate_text( display_label, available_w, ctx( ).truncation_buffer( ) );
 
-			zdraw::get_draw_list( ).add_text( text_x, text_y, label_text, zdraw::get_font( ), style.text );
+			zdraw::get_draw_list( ).add_text( text_x, text_y, label_text, style.text );
 		}
 
 		return changed;
@@ -3764,6 +3822,7 @@ namespace zui {
 				auto [tw, th] = zdraw::measure_text( std::string_view{ text.data( ), i } );
 				const auto char_x = text_start_x + tw;
 				const auto dist = std::abs( click_x - char_x );
+
 				if ( dist < best_dist )
 				{
 					best_dist = dist;
@@ -3795,6 +3854,7 @@ namespace zui {
 				auto [tw, th] = zdraw::measure_text( std::string_view{ text.data( ), i } );
 				const auto char_x = text_start_x + tw;
 				const auto dist = std::abs( mouse_x_pos - char_x );
+
 				if ( dist < best_dist )
 				{
 					best_dist = dist;
@@ -3864,6 +3924,7 @@ namespace zui {
 			if ( process_key( VK_LEFT ) )
 			{
 				state.cursor_blink_timer = 0.0f;
+
 				if ( ctrl_held )
 				{
 					while ( state.cursor_pos > 0 && text[ state.cursor_pos - 1 ] == ' ' )
@@ -3898,6 +3959,7 @@ namespace zui {
 			if ( process_key( VK_RIGHT ) )
 			{
 				state.cursor_blink_timer = 0.0f;
+
 				if ( ctrl_held )
 				{
 					while ( state.cursor_pos < text.size( ) && text[ state.cursor_pos ] != ' ' )
@@ -3983,6 +4045,7 @@ namespace zui {
 					if ( ctrl_held )
 					{
 						auto erase_start = state.cursor_pos;
+
 						while ( erase_start > 0 && text[ erase_start - 1 ] == ' ' )
 						{
 							erase_start--;
@@ -3991,6 +4054,7 @@ namespace zui {
 						{
 							erase_start--;
 						}
+
 						text.erase( erase_start, state.cursor_pos - erase_start );
 						state.cursor_pos = erase_start;
 					}
@@ -4160,11 +4224,11 @@ namespace zui {
 		{
 			auto hint_col = style.text;
 			hint_col.a = 100;
-			zdraw::get_draw_list( ).add_text( frame_rect.x + text_padding_x, text_y, hint, zdraw::get_font( ), hint_col );
+			zdraw::get_draw_list( ).add_text( frame_rect.x + text_padding_x, text_y, hint, hint_col );
 		}
 		else if ( !text.empty( ) )
 		{
-			zdraw::get_draw_list( ).add_text( text_x, text_y, text, zdraw::get_font( ), style.text );
+			zdraw::get_draw_list( ).add_text( text_x, text_y, text, style.text );
 		}
 
 		if ( is_active )

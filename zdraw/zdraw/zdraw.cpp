@@ -1528,24 +1528,29 @@ namespace zdraw {
 		this->m_commands.data( )[ this->m_commands.size( ) - 1 ].m_idx_count += static_cast< std::uint32_t >( tri_count ) * 3u;
 	}
 
-	void draw_list::add_text( float x, float y, std::string_view text, const font* f, rgba color )
+	void draw_list::add_text( float x, float y, std::string_view text, rgba color, const font* font )
 	{
-		if ( f == nullptr || f->m_atlas == nullptr || f->m_atlas->m_texture_srv == nullptr ) [[unlikely]]
+		if ( font == nullptr )
+		{
+			font = get_default_font( );
+		}
+
+		if ( font == nullptr || font->m_atlas == nullptr || font->m_atlas->m_texture_srv == nullptr ) [[unlikely]]
 		{
 			return;
 		}
 
-		this->ensure_draw_cmd( f->m_atlas->m_texture_srv.Get( ) );
+		this->ensure_draw_cmd( font->m_atlas->m_texture_srv.Get( ) );
 
 		auto current_x{ std::floor( x ) };
-		auto current_y{ std::floor( y + f->m_ascent ) };
+		auto current_y{ std::floor( y + font->m_ascent ) };
 
 		for ( char c : text )
 		{
 			if ( c == '\n' )
 			{
 				current_x = std::floor( x );
-				current_y += f->m_line_height;
+				current_y += font->m_line_height;
 				continue;
 			}
 
@@ -1554,7 +1559,7 @@ namespace zdraw {
 				continue;
 			}
 
-			const auto& glyph{ f->get_glyph( c ) };
+			const auto& glyph{ font->get_glyph( c ) };
 			if ( !glyph.m_valid )
 			{
 				continue;
@@ -1585,20 +1590,25 @@ namespace zdraw {
 		}
 	}
 
-	void draw_list::add_text_multi_color( float x, float y, std::string_view text, const font* f, rgba color_tl, rgba color_tr, rgba color_br, rgba color_bl )
+	void draw_list::add_text_multi_color( float x, float y, std::string_view text, rgba color_tl, rgba color_tr, rgba color_br, rgba color_bl, const font* font )
 	{
-		if ( f == nullptr || f->m_atlas == nullptr || f->m_atlas->m_texture_srv == nullptr ) [[unlikely]]
+		if ( font == nullptr )
+		{
+			font = get_default_font( );
+		}
+
+		if ( font == nullptr || font->m_atlas == nullptr || font->m_atlas->m_texture_srv == nullptr ) [[unlikely]]
 		{
 			return;
 		}
 
-		this->ensure_draw_cmd( f->m_atlas->m_texture_srv.Get( ) );
+		this->ensure_draw_cmd( font->m_atlas->m_texture_srv.Get( ) );
 
 		auto current_x{ x };
-		auto current_y{ y + f->m_ascent };
+		auto current_y{ y + font->m_ascent };
 
 		auto text_width{ 0.0f };
-		auto text_height = f->m_line_height;
+		auto text_height = font->m_line_height;
 
 		auto temp_x{ 0.0f };
 
@@ -1607,7 +1617,7 @@ namespace zdraw {
 			if ( c == '\n' )
 			{
 				text_width = std::max( text_width, temp_x );
-				text_height += f->m_line_height;
+				text_height += font->m_line_height;
 				temp_x = 0.0f;
 				continue;
 			}
@@ -1617,7 +1627,7 @@ namespace zdraw {
 				continue;
 			}
 
-			const auto& glyph{ f->get_glyph( c ) };
+			const auto& glyph{ font->get_glyph( c ) };
 			if ( !glyph.m_valid )
 			{
 				continue;
@@ -1663,7 +1673,7 @@ namespace zdraw {
 			if ( c == '\n' )
 			{
 				current_x = x;
-				current_y += f->m_line_height;
+				current_y += font->m_line_height;
 				continue;
 			}
 
@@ -1672,7 +1682,7 @@ namespace zdraw {
 				continue;
 			}
 
-			const auto& glyph{ f->get_glyph( c ) };
+			const auto& glyph{ font->get_glyph( c ) };
 			if ( !glyph.m_valid )
 			{
 				continue;
@@ -1809,40 +1819,40 @@ namespace zdraw {
 	{
 		if ( device == nullptr || context == nullptr ) [[unlikely]]
 		{
-			std::printf("device or context is null\n");
+			std::printf( "device or context is null\n" );
 			return false;
 		}
 
 		detail::g_render.m_device = device;
 		detail::g_render.m_context = context;
 
-		if (!detail::create_shaders()) 
+		if ( !detail::create_shaders( ) )
 		{
-			std::printf("failed to create shaders\n");
+			std::printf( "failed to create shaders\n" );
 			return false;
 		}
 
-		if (!detail::create_render_states())
+		if ( !detail::create_render_states( ) )
 		{
-			std::printf("failed to create render states\n");
+			std::printf( "failed to create render states\n" );
 			return false;
 		}
 
-		if (!detail::create_white_texture())
+		if ( !detail::create_white_texture( ) )
 		{
-			std::printf("failed to create white texture\n");
+			std::printf( "failed to create white texture\n" );
 			return false;
 		}
 
-		if (!detail::create_constant_buffer())
+		if ( !detail::create_constant_buffer( ) )
 		{
-			std::printf("failed to create contsant buffer\n");
+			std::printf( "failed to create contsant buffer\n" );
 			return false;
 		}
 
-		if (!detail::create_persistent_buffers())
+		if ( !detail::create_persistent_buffers( ) )
 		{
-			std::printf("failed to create persistent buffers\n");
+			std::printf( "failed to create persistent buffers\n" );
 			return false;
 		}
 
@@ -2005,20 +2015,20 @@ namespace zdraw {
 		return detail::g_render.m_draw_lists[ static_cast< int >( layer ) ];
 	}
 
-	std::pair<int, int> get_display_size() noexcept
+	std::pair<int, int> get_display_size( ) noexcept
 	{
 		auto& d{ detail::g_render };
 		D3D11_VIEWPORT viewport{};
 		UINT num_viewports{ 1u };
-		
-		if (d.m_context)
+
+		if ( d.m_context )
 		{
-			d.m_context->RSGetViewports(&num_viewports, &viewport);
+			d.m_context->RSGetViewports( &num_viewports, &viewport );
 		}
 
-		if (num_viewports > 0 && viewport.Width > 0.0f && viewport.Height > 0.0f)
+		if ( num_viewports > 0 && viewport.Width > 0.0f && viewport.Height > 0.0f )
 		{
-			return { static_cast<int>(std::lround(viewport.Width)), static_cast<int>(std::lround(viewport.Height)) };
+			return { static_cast< int >( std::lround( viewport.Width ) ), static_cast< int >( std::lround( viewport.Height ) ) };
 		}
 
 		return { 0, 0 };
@@ -2316,14 +2326,14 @@ namespace zdraw {
 		return detail::g_render.m_framerate;
 	}
 
-	void push_font( font* f )
+	void push_font( font* font )
 	{
-		if ( f == nullptr )
+		if ( font == nullptr )
 		{
-			f = detail::g_render.m_default_font;
+			font = detail::g_render.m_default_font;
 		}
 
-		detail::g_render.m_font_stack.push_back( f );
+		detail::g_render.m_font_stack.push_back( font );
 	}
 
 	void pop_font( )
@@ -2334,9 +2344,9 @@ namespace zdraw {
 		}
 	}
 
-	std::pair<float, float> measure_text( std::string_view text, const font* fnt )
+	std::pair<float, float> measure_text( std::string_view text, const font* font )
 	{
-		const auto f{ fnt != nullptr ? fnt : get_font( ) };
+		const auto f{ font != nullptr ? font : get_font( ) };
 
 		float w, h;
 		f->calc_text_size( text, w, h );

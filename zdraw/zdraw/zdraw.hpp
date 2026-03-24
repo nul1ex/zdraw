@@ -193,8 +193,8 @@ namespace zdraw {
 		void add_circle_filled( float x, float y, float radius, rgba color, int segments = 32 );
 		void add_arc( float x, float y, float radius, float start_angle, float end_angle, rgba color, int segments = 32, float thickness = 1.0f );
 		void add_arc_filled( float x, float y, float radius, float start_angle, float end_angle, rgba color, int segments = 32 );
-		void add_text( float x, float y, std::string_view text, const font* font, rgba color );
-		void add_text_multi_color( float x, float y, std::string_view text, const font* f, rgba color_tl, rgba color_tr, rgba color_br, rgba color_bl );
+		void add_text( float x, float y, std::string_view text, rgba color, const font* font = nullptr );
+		void add_text_multi_color( float x, float y, std::string_view text, rgba color_tl, rgba color_tr, rgba color_br, rgba color_bl, const font* font = nullptr );
 	};
 
 	struct font_atlas
@@ -278,9 +278,9 @@ namespace zdraw {
 	[[nodiscard]] float get_delta_time( ) noexcept;
 	[[nodiscard]] float get_framerate( ) noexcept;
 
-	void push_font( font* f );
+	void push_font( font* font );
 	void pop_font( );
 
-	[[nodiscard]] std::pair<float, float> measure_text( std::string_view text, const font* fnt = nullptr );
+	[[nodiscard]] std::pair<float, float> measure_text( std::string_view text, const font* font = nullptr );
 
 } // namespace zdraw
